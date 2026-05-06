@@ -39,5 +39,7 @@ RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 775 /var/www/html/storage \
     && chmod -R 775 /var/www/html/bootstrap/cache
 
-EXPOSE 8080
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8080"]
+# PHP-FPM akan berjalan di port 9000 (internal container)
+# Nginx Pusat di server Biznet akan meneruskan request ke port ini
+EXPOSE 9000
+CMD ["php-fpm"]

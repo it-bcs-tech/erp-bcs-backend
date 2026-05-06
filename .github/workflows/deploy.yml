@@ -3,7 +3,7 @@ name: Deploy Backend to Biznet Server
 on:
   push:
     branches:
-      - main  # Sesuaikan dengan branch utama Anda (main/master)
+      - master  # Sesuaikan dengan branch utama Anda (main/master)
 
 env:
   REGISTRY: ghcr.io
