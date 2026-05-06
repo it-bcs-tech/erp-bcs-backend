@@ -13,15 +13,29 @@ class User extends Authenticatable implements JWTSubject
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    protected $connection = 'pgsql_master';
+    protected $table = 'm_presensi';
+
     /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
      */
     protected $fillable = [
+        'karyawan_id',
         'name',
         'email',
         'password',
+        'photo',
+        'phone',
+        'address',
+        'device_token',
+        'is_active',
+        'role',
+        'employment_type',
+        'office_location_id',
+        'pin',
+        'fcm_token',
     ];
 
     /**
