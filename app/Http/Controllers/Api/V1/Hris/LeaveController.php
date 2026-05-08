@@ -20,50 +20,26 @@ class LeaveController extends Controller
      */
     public function index(Request $request)
     {
-        $query = LeaveRequest::with('employee:id,name,role,avatar,department_id', 'employee.department:id,name');
-
-        // Filter by status
-        if ($status = $request->get('status')) {
-            $query->where('status', $status);
-        }
-
-        // Filter by type
-        if ($type = $request->get('type')) {
-            $query->where('type', $type);
-        }
-
-        // Filter by employee
-        if ($employeeId = $request->get('employee_id')) {
-            $query->where('employee_id', $employeeId);
-        }
-
-        $requests = $query->orderBy('created_at', 'desc')->get()->map(function ($leave) {
-            $status = $leave->status;
-            if (!in_array($status, ['Pending', 'Approved', 'Rejected'])) {
-                $status = 'Pending';
-            }
-
-            return [
-                'id'           => 'LV-' . $leave->created_at->format('Y') . '-' . str_pad($leave->id, 3, '0', STR_PAD_LEFT),
-                'employeeName' => $leave->employee ? $leave->employee->name : 'Unknown',
-                'employeeId'   => $leave->employee ? ($leave->employee->employee_code ?? 'EMP-' . str_pad($leave->employee->id, 3, '0', STR_PAD_LEFT)) : 'Unknown',
-                'type'         => $leave->type ?? 'Annual Leave (Cuti Tahunan)',
-                'startDate'    => $leave->start_date ? $leave->start_date->format('Y-m-d') : '2026-05-10',
-                'endDate'      => $leave->end_date ? $leave->end_date->format('Y-m-d') : '2026-05-12',
-                'duration'     => $leave->start_date && $leave->end_date ? $leave->start_date->diffInDays($leave->end_date) + 1 : 3,
-                'reason'       => $leave->reason ?? 'Liburan Keluarga',
-                'status'       => $status,
-                'avatar'       => $leave->employee && $leave->employee->avatar ? $leave->employee->avatar : 'https://ui-avatars.com/api/?name=' . urlencode($leave->employee ? $leave->employee->name : 'User')
-            ];
-        });
-
-        $now = Carbon::now();
+        $requests = [
+            [
+                'id'           => 'LV-2026-001',
+                'employeeName' => 'Budi Santoso',
+                'employeeId'   => 'EMP-001',
+                'type'         => 'Annual Leave (Cuti Tahunan)',
+                'startDate'    => '2026-05-10',
+                'endDate'      => '2026-05-12',
+                'duration'     => 3,
+                'reason'       => 'Liburan Keluarga',
+                'status'       => 'Pending',
+                'avatar'       => 'https://ui-avatars.com/api/?name=Budi+Santoso'
+            ]
+        ];
 
         $metrics = [
-            'pendingApprovals'      => LeaveRequest::where('status', 'Pending')->count(),
-            'approvedThisMonth'     => LeaveRequest::where('status', 'Approved')->whereMonth('updated_at', $now->month)->whereYear('updated_at', $now->year)->count(),
-            'rejectedThisMonth'     => LeaveRequest::where('status', 'Rejected')->whereMonth('updated_at', $now->month)->whereYear('updated_at', $now->year)->count(),
-            'employeesOnLeaveToday' => LeaveRequest::where('status', 'Approved')->whereDate('start_date', '<=', $now->toDateString())->whereDate('end_date', '>=', $now->toDateString())->count(),
+            'pendingApprovals'      => 12,
+            'approvedThisMonth'     => 45,
+            'rejectedThisMonth'     => 3,
+            'employeesOnLeaveToday' => 8,
         ];
 
         $data = [

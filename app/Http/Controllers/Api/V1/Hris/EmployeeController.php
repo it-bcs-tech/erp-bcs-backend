@@ -21,46 +21,28 @@ class EmployeeController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Employee::with(['department:id,name', 'manager:id,name']);
-
-        // Search by name or email
-        if ($search = $request->get('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('employee_code', 'like', "%{$search}%");
-            });
-        }
-
-        // Filter by department
-        if ($department = $request->get('department')) {
-            $query->whereHas('department', function ($q) use ($department) {
-                $q->where('name', $department);
-            });
-        }
-
-        // Filter by status
-        if ($status = $request->get('status')) {
-            $query->where('status', $status);
-        }
-
-        // Filter by role
-        if ($role = $request->get('role')) {
-            $query->where('role', 'like', "%{$role}%");
-        }
-
-        $employees = $query->orderBy('name')->get()->map(function ($emp) {
-            return [
-                'id'         => $emp->employee_code ?? 'EMP-' . str_pad($emp->id, 3, '0', STR_PAD_LEFT),
-                'name'       => $emp->name,
-                'role'       => $emp->role ?? 'Staff',
-                'department' => $emp->department ? $emp->department->name : 'General',
-                'email'      => $emp->email,
-                'status'     => $emp->status ?? 'Active',
-                'joinDate'   => $emp->join_date ? $emp->join_date->format('Y-m-d') : '2020-01-15',
-                'avatar'     => $emp->avatar ?? 'https://ui-avatars.com/api/?name=' . urlencode($emp->name)
-            ];
-        });
+        $employees = [
+            [
+                'id'         => 'EMP-001',
+                'name'       => 'Budi Santoso',
+                'role'       => 'Manager Operations',
+                'department' => 'Operations',
+                'email'      => 'budi.s@bcslabs.tech',
+                'status'     => 'Active',
+                'joinDate'   => '2020-01-15',
+                'avatar'     => 'https://ui-avatars.com/api/?name=Budi+Santoso'
+            ],
+            [
+                'id'         => 'EMP-002',
+                'name'       => 'Siti Aminah',
+                'role'       => 'Senior Engineer',
+                'department' => 'Engineering',
+                'email'      => 'siti.a@bcslabs.tech',
+                'status'     => 'Active',
+                'joinDate'   => '2021-03-10',
+                'avatar'     => 'https://ui-avatars.com/api/?name=Siti+Aminah'
+            ]
+        ];
 
         return $this->successResponse($employees, 'Employees retrieved successfully');
     }
