@@ -5,6 +5,8 @@ use App\Http\Controllers\Api\V1\Hris\AttendanceController;
 use App\Http\Controllers\Api\V1\Hris\DashboardController;
 use App\Http\Controllers\Api\V1\Hris\EmployeeController;
 use App\Http\Controllers\Api\V1\Hris\LeaveController;
+use App\Http\Controllers\Api\V1\Hris\LifecycleController;
+use App\Http\Controllers\Api\V1\Hris\PerformanceController;
 use App\Http\Controllers\Api\V1\Hris\RecruitmentController;
 use Illuminate\Support\Facades\Route;
 
@@ -56,4 +58,10 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     // Recruitment
     Route::get('/hris/recruitment/pipeline', [RecruitmentController::class, 'pipeline']);
     Route::put('/hris/recruitment/candidates/{id}/stage', [RecruitmentController::class, 'updateStage']);
+
+    // Lifecycle
+    Route::get('/hris/lifecycle', [LifecycleController::class, 'index']);
+
+    // Performance
+    Route::get('/hris/performance', [PerformanceController::class, 'index']);
 });

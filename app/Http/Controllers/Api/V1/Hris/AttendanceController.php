@@ -41,10 +41,43 @@ class AttendanceController extends Controller
             });
         }
 
-        $perPage = $request->get('limit', 20);
-        $logs = $query->orderBy('check_in', 'desc')->paginate($perPage);
+        $logs = $query->orderBy('check_in', 'desc')->get()->map(function ($log) {
+            $status = $log->status;
+            if (!in_array($status, ['On Time', 'Late', 'Absent'])) {
+                $status = 'On Time';
+            }
 
-        return $this->paginatedResponse($logs);
+            return [
+                'id'               => 'ATT-' . str_pad($log->id, 4, '0', STR_PAD_LEFT),
+                'employeeName'     => $log->employee ? $log->employee->name : 'Unknown',
+                'employeeId'       => $log->employee ? ($log->employee->employee_code ?? 'EMP-' . str_pad($log->employee->id, 3, '0', STR_PAD_LEFT)) : 'Unknown',
+                'department'       => $log->employee && $log->employee->department ? $log->employee->department->name : 'General',
+                'date'             => $log->date->format('Y-m-d'),
+                'checkIn'          => $log->check_in ? $log->check_in->format('h:i A') : '--:-- AM',
+                'checkOut'         => $log->check_out ? $log->check_out->format('h:i A') : '--:-- PM',
+                'status'           => $status,
+                'checkInLocation'  => 'Kantor Pusat Cilegon', // Placeholder for actual location
+                'checkOutLocation' => 'Kantor Pusat Cilegon',
+                'avatar'           => $log->employee && $log->employee->avatar ? $log->employee->avatar : 'https://ui-avatars.com/api/?name=' . urlencode($log->employee ? $log->employee->name : 'User')
+            ];
+        });
+
+        $totalEmployees = \App\Models\Employee::where('status', 'Active')->count();
+        $presentToday   = AttendanceLog::whereDate('date', $date)->count();
+        $lateToday      = AttendanceLog::whereDate('date', $date)->where('status', 'Late')->count();
+        $absentToday    = AttendanceLog::whereDate('date', $date)->where('status', 'Absent')->count() ?: ($totalEmployees - $presentToday);
+
+        $data = [
+            'logs'    => $logs,
+            'metrics' => [
+                'totalEmployees' => $totalEmployees,
+                'presentToday'   => $presentToday,
+                'lateToday'      => $lateToday,
+                'absentToday'    => max(0, $absentToday),
+            ]
+        ];
+
+        return $this->successResponse($data, 'Attendance retrieved successfully');
     }
 
     /**

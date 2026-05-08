@@ -49,10 +49,20 @@ class EmployeeController extends Controller
             $query->where('role', 'like', "%{$role}%");
         }
 
-        $perPage = $request->get('limit', 10);
-        $employees = $query->orderBy('name')->paginate($perPage);
+        $employees = $query->orderBy('name')->get()->map(function ($emp) {
+            return [
+                'id'         => $emp->employee_code ?? 'EMP-' . str_pad($emp->id, 3, '0', STR_PAD_LEFT),
+                'name'       => $emp->name,
+                'role'       => $emp->role ?? 'Staff',
+                'department' => $emp->department ? $emp->department->name : 'General',
+                'email'      => $emp->email,
+                'status'     => $emp->status ?? 'Active',
+                'joinDate'   => $emp->join_date ? $emp->join_date->format('Y-m-d') : '2020-01-15',
+                'avatar'     => $emp->avatar ?? 'https://ui-avatars.com/api/?name=' . urlencode($emp->name)
+            ];
+        });
 
-        return $this->paginatedResponse($employees);
+        return $this->successResponse($employees, 'Employees retrieved successfully');
     }
 
     /**
