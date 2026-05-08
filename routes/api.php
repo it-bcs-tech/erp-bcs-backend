@@ -40,14 +40,14 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
 
     // Dashboard
     Route::prefix('hris/dashboard')->group(function () {
-        Route::get('/metrics', [DashboardController::class, 'metrics']);
+        // Route::get('/metrics', [DashboardController::class, 'metrics']);
         Route::get('/attendance-trend', [DashboardController::class, 'attendanceTrend']);
         Route::get('/anniversaries', [DashboardController::class, 'anniversaries']);
         Route::get('/activities', [DashboardController::class, 'activities']);
     });
 
     // Employees
-    Route::get('/hris/employees', [EmployeeController::class, 'index']);
+    // Route::get('/hris/employees', [EmployeeController::class, 'index']);
     Route::post('/hris/employees', [EmployeeController::class, 'store']);
     Route::get('/hris/employees/{id}', [EmployeeController::class, 'show']);
     Route::put('/hris/employees/{id}', [EmployeeController::class, 'update']);
