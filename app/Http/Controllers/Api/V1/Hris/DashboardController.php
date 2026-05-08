@@ -3,14 +3,11 @@
 namespace App\Http\Controllers\Api\V1\Hris;
 
 use App\Http\Controllers\Controller;
-use App\Models\ActivityLog;
-use App\Models\AttendanceLog;
 use App\Models\Employee;
-use App\Models\LeaveRequest;
-use App\Models\RecruitmentJob;
 use App\Traits\ApiResponseTrait;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -24,14 +21,32 @@ class DashboardController extends Controller
     {
         $today = Carbon::today();
 
+        $totalEmployees = Employee::where('aktif', 'Y')->count();
+        
+        $presentToday = 0;
+        try {
+            $presentToday = DB::connection('pgsql_presensi')
+                ->table('presences')
+                ->whereDate('date', $today->format('Y-m-d'))
+                ->distinct('user_id')
+                ->count('user_id');
+        } catch (\Exception $e) {}
+
+        $totalLeaveRequests = 0;
+        $pendingLeaveRequests = 0;
+        try {
+            $totalLeaveRequests = DB::connection('pgsql_presensi')->table('leaves')->count();
+            $pendingLeaveRequests = DB::connection('pgsql_presensi')->table('leaves')->where('status', 'pending')->count();
+        } catch (\Exception $e) {}
+
         $data = [
-            'totalEmployees'        => Employee::where('aktif', 'Y')->count(),
-            'presentToday'          => 602, // AttendanceLog::whereDate('date', $today)->count()
-            'attendanceCapacity'    => 92,
-            'totalLeaveRequests'    => 12, // LeaveRequest::count()
-            'pendingLeaveRequests'  => 5,  // LeaveRequest::where('status', 'Pending')->count()
-            'openPositions'         => 8,  // RecruitmentJob::where('status', 'Open')->count()
-            'highPriorityPositions' => 3,  // RecruitmentJob::where('status', 'Open')->where('priority', 'High')->count()
+            'totalEmployees'        => $totalEmployees,
+            'presentToday'          => $presentToday,
+            'attendanceCapacity'    => $totalEmployees > 0 ? round(($presentToday / $totalEmployees) * 100) : 0,
+            'totalLeaveRequests'    => $totalLeaveRequests,
+            'pendingLeaveRequests'  => $pendingLeaveRequests,
+            'openPositions'         => 0, // Mocked until recruitment is integrated
+            'highPriorityPositions' => 0,
         ];
 
         return $this->successResponse($data, 'Metrics retrieved successfully');
@@ -39,7 +54,7 @@ class DashboardController extends Controller
 
     /**
      * GET /api/v1/hris/dashboard/attendance-trend
-     * Monthly attendance trend: Remote vs On-Site percentage.
+     * Monthly attendance trend.
      */
     public function attendanceTrend(Request $request)
     {
@@ -51,16 +66,17 @@ class DashboardController extends Controller
             $month = $date->format('Y-m');
             $label = $date->format('M Y');
 
-            $total  = AttendanceLog::whereYear('date', $date->year)
-                                   ->whereMonth('date', $date->month)
-                                   ->count();
+            $total = 0;
+            try {
+                $total = DB::connection('pgsql_presensi')
+                    ->table('presences')
+                    ->whereYear('date', $date->year)
+                    ->whereMonth('date', $date->month)
+                    ->count();
+            } catch (\Exception $e) {}
 
-            $remote = AttendanceLog::whereYear('date', $date->year)
-                                   ->whereMonth('date', $date->month)
-                                   ->where('work_type', 'Remote')
-                                   ->count();
-
-            $onSite = $total - $remote;
+            $remote = 0;
+            $onSite = $total;
 
             $trend[] = [
                 'month'          => $month,
@@ -85,34 +101,37 @@ class DashboardController extends Controller
         $now   = Carbon::now();
         $month = $now->month;
 
-        // Work anniversaries (join_date same month, but not this year = anniversary)
-        $workAnniversaries = Employee::where('status', 'Active')
-            ->whereMonth('join_date', $month)
-            ->whereYear('join_date', '<', $now->year)
+        // Work anniversaries (tgl_masuk same month, but not this year = anniversary)
+        $workAnniversaries = Employee::where('aktif', 'Y')
+            ->whereNotNull('tgl_masuk')
+            ->whereMonth('tgl_masuk', $month)
+            ->whereYear('tgl_masuk', '<', $now->year)
             ->get()
             ->map(function ($emp) use ($now) {
+                $joinDate = \Carbon\Carbon::parse($emp->tgl_masuk);
                 return [
                     'id'    => $emp->id,
-                    'name'  => $emp->name,
-                    'role'  => $emp->role,
+                    'name'  => $emp->nama_karyawan ?? $emp->nama,
+                    'role'  => $emp->jabatan ?? 'Staff',
                     'type'  => 'work_anniversary',
-                    'date'  => $emp->join_date->format('Y-m-d'),
-                    'years' => $now->year - $emp->join_date->year,
+                    'date'  => $joinDate->format('Y-m-d'),
+                    'years' => $now->year - $joinDate->year,
                 ];
             });
 
         // Birthdays this month
-        $birthdays = Employee::where('status', 'Active')
-            ->whereNotNull('birth_date')
-            ->whereMonth('birth_date', $month)
+        $birthdays = Employee::where('aktif', 'Y')
+            ->whereNotNull('tgl_lahir')
+            ->whereMonth('tgl_lahir', $month)
             ->get()
             ->map(function ($emp) {
+                $birthDate = \Carbon\Carbon::parse($emp->tgl_lahir);
                 return [
                     'id'   => $emp->id,
-                    'name' => $emp->name,
-                    'role' => $emp->role,
+                    'name' => $emp->nama_karyawan ?? $emp->nama,
+                    'role' => $emp->jabatan ?? 'Staff',
                     'type' => 'birthday',
-                    'date' => $emp->birth_date->format('m-d'),
+                    'date' => $birthDate->format('m-d'),
                 ];
             });
 
@@ -129,25 +148,29 @@ class DashboardController extends Controller
     public function activities(Request $request)
     {
         $limit = $request->get('limit', 10);
+        $activities = [];
 
-        $activities = ActivityLog::with('employee:id,name,avatar')
-            ->orderBy('created_at', 'desc')
-            ->limit($limit)
-            ->get()
-            ->map(function ($log) {
+        try {
+            $activityLogs = DB::connection('pgsql_master')
+                ->table('activity_log') // Use spatie default table if exists or mock
+                ->orderBy('created_at', 'desc')
+                ->limit($limit)
+                ->get();
+                
+            $activities = $activityLogs->map(function ($log) {
                 return [
                     'id'          => $log->id,
-                    'type'        => $log->type,
+                    'type'        => $log->log_name ?? 'activity',
                     'description' => $log->description,
-                    'employee'    => $log->employee ? [
-                        'id'     => $log->employee->id,
-                        'name'   => $log->employee->name,
-                        'avatar' => $log->employee->avatar,
-                    ] : null,
-                    'metadata'    => $log->metadata,
-                    'created_at'  => $log->created_at->toISOString(),
+                    'employee'    => null, // Can map to causer_id later
+                    'metadata'    => json_decode($log->properties ?? '{}', true),
+                    'created_at'  => Carbon::parse($log->created_at)->toISOString(),
                 ];
             });
+        } catch (\Exception $e) {
+            // Fallback if no activity log table
+            $activities = [];
+        }
 
         return $this->successResponse($activities);
     }
