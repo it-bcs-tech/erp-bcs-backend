@@ -9,6 +9,10 @@ class Employee extends Model
 {
     use HasFactory;
 
+    protected $connection = 'pgsql_master';
+    protected $table = 'm_karyawan';
+    public $timestamps = false;
+
     protected $fillable = [
         'user_id',
         'department_id',

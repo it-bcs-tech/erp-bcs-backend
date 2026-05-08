@@ -21,28 +21,33 @@ class EmployeeController extends Controller
      */
     public function index(Request $request)
     {
-        $employees = [
-            [
-                'id'         => 'EMP-001',
-                'name'       => 'Budi Santoso',
-                'role'       => 'Manager Operations',
-                'department' => 'Operations',
-                'email'      => 'budi.s@bcslabs.tech',
-                'status'     => 'Active',
-                'joinDate'   => '2020-01-15',
-                'avatar'     => 'https://ui-avatars.com/api/?name=Budi+Santoso'
-            ],
-            [
-                'id'         => 'EMP-002',
-                'name'       => 'Siti Aminah',
-                'role'       => 'Senior Engineer',
-                'department' => 'Engineering',
-                'email'      => 'siti.a@bcslabs.tech',
-                'status'     => 'Active',
-                'joinDate'   => '2021-03-10',
-                'avatar'     => 'https://ui-avatars.com/api/?name=Siti+Aminah'
-            ]
-        ];
+        $query = Employee::query();
+
+        // Filter by status (aktif)
+        if ($status = $request->get('status')) {
+            $aktif = $status === 'Active' ? 'Y' : 'N';
+            $query->where('aktif', $aktif);
+        }
+
+        // Search by name
+        if ($search = $request->get('search')) {
+            $query->where('nama_karyawan', 'like', "%{$search}%");
+        }
+
+        $employees = $query->orderBy('nama_karyawan')->limit(50)->get()->map(function ($emp) {
+            $status = ($emp->aktif == 'Y') ? 'Active' : 'Inactive';
+            
+            return [
+                'id'         => $emp->id ? 'EMP-' . str_pad($emp->id, 3, '0', STR_PAD_LEFT) : 'Unknown',
+                'name'       => $emp->nama_karyawan ?? $emp->nama ?? 'Unknown',
+                'role'       => $emp->jabatan ?? 'Staff',
+                'department' => $emp->departemen ?? 'General',
+                'email'      => $emp->email ?? strtolower(str_replace(' ', '.', $emp->nama_karyawan ?? 'user')) . '@bcslabs.tech',
+                'status'     => $status,
+                'joinDate'   => $emp->tgl_masuk ? \Carbon\Carbon::parse($emp->tgl_masuk)->format('Y-m-d') : '2020-01-15',
+                'avatar'     => $emp->foto ?? 'https://ui-avatars.com/api/?name=' . urlencode($emp->nama_karyawan ?? 'User')
+            ];
+        });
 
         return $this->successResponse($employees, 'Employees retrieved successfully');
     }

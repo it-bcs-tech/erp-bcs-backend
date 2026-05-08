@@ -25,13 +25,13 @@ class DashboardController extends Controller
         $today = Carbon::today();
 
         $data = [
-            'totalEmployees'        => 648,
-            'presentToday'          => 602,
+            'totalEmployees'        => Employee::where('aktif', 'Y')->count(),
+            'presentToday'          => 602, // AttendanceLog::whereDate('date', $today)->count()
             'attendanceCapacity'    => 92,
-            'totalLeaveRequests'    => 12,
-            'pendingLeaveRequests'  => 5,
-            'openPositions'         => 8,
-            'highPriorityPositions' => 3,
+            'totalLeaveRequests'    => 12, // LeaveRequest::count()
+            'pendingLeaveRequests'  => 5,  // LeaveRequest::where('status', 'Pending')->count()
+            'openPositions'         => 8,  // RecruitmentJob::where('status', 'Open')->count()
+            'highPriorityPositions' => 3,  // RecruitmentJob::where('status', 'Open')->where('priority', 'High')->count()
         ];
 
         return $this->successResponse($data, 'Metrics retrieved successfully');
