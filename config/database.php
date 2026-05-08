@@ -84,19 +84,23 @@ return [
             ]) : [],
         ],
 
-        'pgsql' => [
+         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '5432'),
+            'port' => env('DB_PORT', '5433'),               // Default fallback 5433
             'database' => env('DB_DATABASE', 'mybcs_db'),
             'username' => env('DB_USERNAME', 'bcs_admin'),
-            'password' => env('DB_PASSWORD', 'sangatrahasia'),
+            'password' => env('DB_PASSWORD', ''),
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => env('DB_SCHEMA', 'erp'),
-            'sslmode' => env('DB_SSLMODE', 'prefer'),
+            'search_path' => env('DB_SCHEMA', 'presensi') . ',master',  // Menangkap skema presensi + master untuk cross-schema query
+            'sslmode' => 'prefer',
+            'options' => [
+                PDO::ATTR_PERSISTENT => false,
+                PDO::ATTR_TIMEOUT => 5,
+            ],
         ],
 
         // Koneksi ke schema master (untuk ambil data karyawan, divisi, dll)
@@ -104,13 +108,12 @@ return [
             'driver' => 'pgsql',
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_DATABASE_MASTER', 'master_db'),
+            'database' => env('DB_DATABASE', 'mybcs_db'),
             'username' => env('DB_USERNAME', 'bcs_admin'),
-            'password' => env('DB_PASSWORD', 'sangatrahasia'),
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => env('DB_SCHEMA_MASTER', 'public'),
+            'search_path' => 'master',
             'sslmode' => 'prefer',
         ],
 
@@ -119,13 +122,13 @@ return [
             'driver' => 'pgsql',
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_DATABASE_PRESENSI', 'presensi_db'),
+            'database' => env('DB_DATABASE', 'mybcs_db'),
             'username' => env('DB_USERNAME', 'bcs_admin'),
-            'password' => env('DB_PASSWORD', 'sangatrahasia'),
+            'password' => env('DB_PASSWORD', 'postgres'),
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => env('DB_SCHEMA_PRESENSI', 'public'),
+            'search_path' => env('DB_SCHEMA', 'presensi') . ',master',
             'sslmode' => 'prefer',
         ],
 
