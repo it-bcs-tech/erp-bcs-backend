@@ -22,6 +22,12 @@ Route::prefix('v1/auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
 });
 
+// Temporary Public Test Routes
+Route::prefix('v1/hris')->group(function () {
+    Route::get('dashboard/metrics', [DashboardController::class, 'metrics']);
+    Route::get('employees', [EmployeeController::class, 'index']);
+});
+
 // ── Protected Routes (JWT) ──────────────────────────────
 Route::prefix('v1')->middleware('auth:api')->group(function () {
 
