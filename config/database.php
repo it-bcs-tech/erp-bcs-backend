@@ -106,10 +106,12 @@ return [
         // Koneksi ke schema master (untuk ambil data karyawan, divisi, dll)
         'pgsql_master' => [
             'driver' => 'pgsql',
+            'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '5432'),
+            'port' => env('DB_PORT', '5433'),               // Default fallback 5433
             'database' => env('DB_DATABASE', 'mybcs_db'),
             'username' => env('DB_USERNAME', 'bcs_admin'),
+            'password' => env('DB_PASSWORD', ''),
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
