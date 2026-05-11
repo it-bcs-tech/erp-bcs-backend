@@ -18,29 +18,56 @@ class AttendanceController extends Controller
      */
     public function index(Request $request)
     {
-        $logs = [
-            [
-                'id'               => 'ATT-1001',
-                'employeeName'     => 'Budi Santoso',
-                'employeeId'       => 'EMP-001',
-                'department'       => 'Engineering',
-                'date'             => '2026-05-07',
-                'checkIn'          => '07:45 AM',
-                'checkOut'         => '17:15 PM',
-                'status'           => 'On Time',
-                'checkInLocation'  => 'Kantor Pusat Cilegon',
-                'checkOutLocation' => 'Kantor Pusat Cilegon',
-                'avatar'           => 'https://ui-avatars.com/api/?name=Budi+Santoso'
-            ]
-        ];
+        $limit = $request->get('limit', 10);
+        $date = $request->get('date');
+        $status = $request->get('status');
+        
+        $query = AttendanceLog::with('employee:id,nama_karyawan,departemen,jabatan,foto');
+
+        if ($date) {
+            $query->whereDate('date', $date);
+        }
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        $logsData = $query->orderBy('date', 'desc')
+                          ->orderBy('check_in', 'desc')
+                          ->limit($limit)
+                          ->get()
+                          ->map(function ($log) {
+                              $employee = $log->employee;
+                              return [
+                                  'id'               => 'ATT-' . str_pad($log->id, 4, '0', STR_PAD_LEFT),
+                                  'employeeName'     => $employee ? ($employee->nama_karyawan ?? 'Unknown') : 'Unknown',
+                                  'employeeId'       => $log->employee_id ? 'EMP-' . str_pad($log->employee_id, 3, '0', STR_PAD_LEFT) : 'Unknown',
+                                  'department'       => $employee ? ($employee->departemen ?? 'General') : 'General',
+                                  'date'             => $log->date->format('Y-m-d'),
+                                  'checkIn'          => $log->check_in ? $log->check_in->format('H:i A') : null,
+                                  'checkOut'         => $log->check_out ? $log->check_out->format('H:i A') : null,
+                                  'status'           => $log->status,
+                                  'checkInLocation'  => $log->notes ?? 'Kantor', // Fallback if no location data available
+                                  'checkOutLocation' => $log->notes ?? 'Kantor',
+                                  'avatar'           => $employee && $employee->foto ? $employee->foto : 'https://ui-avatars.com/api/?name=' . urlencode($employee ? ($employee->nama_karyawan ?? 'User') : 'User')
+                              ];
+                          });
+
+        $today = Carbon::today()->toDateString();
+        $totalEmployees = Employee::where('aktif', 'Y')->count();
+        $presentToday = AttendanceLog::whereDate('date', $today)
+                                     ->whereIn('status', ['On Time', 'Late', 'Half Day'])
+                                     ->count();
+        $lateToday = AttendanceLog::whereDate('date', $today)->where('status', 'Late')->count();
+        $absentToday = AttendanceLog::whereDate('date', $today)->where('status', 'Absent')->count();
 
         $data = [
-            'logs'    => $logs,
+            'logs'    => $logsData,
             'metrics' => [
-                'totalEmployees' => 648,
-                'presentToday'   => 602,
-                'lateToday'      => 24,
-                'absentToday'    => 22,
+                'totalEmployees' => $totalEmployees,
+                'presentToday'   => $presentToday,
+                'lateToday'      => $lateToday,
+                'absentToday'    => $absentToday,
             ]
         ];
 

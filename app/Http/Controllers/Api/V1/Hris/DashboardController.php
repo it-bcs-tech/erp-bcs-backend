@@ -23,21 +23,13 @@ class DashboardController extends Controller
 
         $totalEmployees = Employee::where('aktif', 'Y')->count();
         
-        $presentToday = 0;
-        try {
-            $presentToday = DB::connection('pgsql_presensi')
-                ->table('presences')
-                ->whereDate('date', $today->format('Y-m-d'))
-                ->distinct('user_id')
-                ->count('user_id');
-        } catch (\Exception $e) {}
+        $presentToday = \App\Models\AttendanceLog::whereDate('date', $today->format('Y-m-d'))
+                                                 ->whereIn('status', ['On Time', 'Late', 'Half Day'])
+                                                 ->distinct('employee_id')
+                                                 ->count('employee_id');
 
-        $totalLeaveRequests = 0;
-        $pendingLeaveRequests = 0;
-        try {
-            $totalLeaveRequests = DB::connection('pgsql_presensi')->table('leaves')->count();
-            $pendingLeaveRequests = DB::connection('pgsql_presensi')->table('leaves')->where('status', 'pending')->count();
-        } catch (\Exception $e) {}
+        $totalLeaveRequests = \App\Models\LeaveRequest::count();
+        $pendingLeaveRequests = \App\Models\LeaveRequest::where('status', 'Pending')->count();
 
         $data = [
             'totalEmployees'        => $totalEmployees,
@@ -66,17 +58,17 @@ class DashboardController extends Controller
             $month = $date->format('Y-m');
             $label = $date->format('M Y');
 
-            $total = 0;
-            try {
-                $total = DB::connection('pgsql_presensi')
-                    ->table('presences')
-                    ->whereYear('date', $date->year)
-                    ->whereMonth('date', $date->month)
-                    ->count();
-            } catch (\Exception $e) {}
+            $total = \App\Models\AttendanceLog::whereYear('date', $date->year)
+                                              ->whereMonth('date', $date->month)
+                                              ->whereIn('status', ['On Time', 'Late', 'Half Day'])
+                                              ->count();
 
-            $remote = 0;
-            $onSite = $total;
+            $remote = \App\Models\AttendanceLog::whereYear('date', $date->year)
+                                               ->whereMonth('date', $date->month)
+                                               ->where('work_type', 'Remote')
+                                               ->count();
+            
+            $onSite = $total > 0 ? $total - $remote : 0;
 
             $trend[] = [
                 'month'          => $month,
