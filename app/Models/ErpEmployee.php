@@ -5,13 +5,17 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Employee extends Model
+/**
+ * Model for erp.employees table.
+ * This is separate from Employee (m_karyawan) because ERP modules
+ * (attendance, leaves, recruitment) reference erp.employees.
+ */
+class ErpEmployee extends Model
 {
     use HasFactory;
 
-    protected $connection = 'pgsql_master';
-    protected $table = 'm_karyawan';
-    public $timestamps = false;
+    protected $connection = 'pgsql';
+    protected $table = 'erp.employees';
 
     protected $fillable = [
         'user_id',
@@ -34,19 +38,14 @@ class Employee extends Model
     protected function casts(): array
     {
         return [
-            'join_date'   => 'date',
-            'birth_date'  => 'date',
-            'leave_balance' => 'integer',
+            'join_date'         => 'date',
+            'birth_date'        => 'date',
+            'leave_balance'     => 'integer',
             'performance_score' => 'decimal:1',
         ];
     }
 
     // ── Relationships ───────────────────────────────────
-
-    public function user()
-    {
-        return $this->belongsTo(User::class);
-    }
 
     public function department()
     {
@@ -55,21 +54,21 @@ class Employee extends Model
 
     public function manager()
     {
-        return $this->belongsTo(Employee::class, 'manager_id');
+        return $this->belongsTo(ErpEmployee::class, 'manager_id');
     }
 
     public function subordinates()
     {
-        return $this->hasMany(Employee::class, 'manager_id');
+        return $this->hasMany(ErpEmployee::class, 'manager_id');
     }
 
     public function attendanceLogs()
     {
-        return $this->hasMany(AttendanceLog::class);
+        return $this->hasMany(AttendanceLog::class, 'employee_id');
     }
 
     public function leaveRequests()
     {
-        return $this->hasMany(LeaveRequest::class);
+        return $this->hasMany(LeaveRequest::class, 'employee_id');
     }
 }

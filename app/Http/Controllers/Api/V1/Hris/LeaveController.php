@@ -20,34 +20,78 @@ class LeaveController extends Controller
      */
     public function index(Request $request)
     {
-        $requests = [
-            [
-                'id'           => 'LV-2026-001',
-                'employeeName' => 'Budi Santoso',
-                'employeeId'   => 'EMP-001',
-                'type'         => 'Annual Leave (Cuti Tahunan)',
-                'startDate'    => '2026-05-10',
-                'endDate'      => '2026-05-12',
-                'duration'     => 3,
-                'reason'       => 'Liburan Keluarga',
-                'status'       => 'Pending',
-                'avatar'       => 'https://ui-avatars.com/api/?name=Budi+Santoso'
-            ]
-        ];
+        $limit = $request->get('limit', 50);
+        $status = $request->get('status');
 
+        $query = LeaveRequest::with('employee:id,name,email,role,avatar');
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        $leaveData = $query->orderBy('created_at', 'desc')
+                           ->limit($limit)
+                           ->get()
+                           ->map(function ($leave) {
+                               $employee = $leave->employee;
+                               $startDate = \Carbon\Carbon::parse($leave->start_date);
+                               $endDate = \Carbon\Carbon::parse($leave->end_date);
+                               $duration = $startDate->diffInDays($endDate) + 1;
+
+                               return [
+                                   'id'           => 'LV-' . $startDate->format('Y') . '-' . str_pad($leave->id, 3, '0', STR_PAD_LEFT),
+                                   'employeeName' => $employee ? ($employee->name ?? 'Unknown') : 'Unknown',
+                                   'employeeId'   => $employee ? 'EMP-' . str_pad($employee->id, 3, '0', STR_PAD_LEFT) : 'Unknown',
+                                   'type'         => $this->formatLeaveType($leave->type),
+                                   'startDate'    => $startDate->format('Y-m-d'),
+                                   'endDate'      => $endDate->format('Y-m-d'),
+                                   'duration'     => $duration,
+                                   'reason'       => $leave->reason ?? '-',
+                                   'status'       => $leave->status,
+                                   'avatar'       => $employee && $employee->avatar
+                                       ? $employee->avatar
+                                       : 'https://ui-avatars.com/api/?name=' . urlencode($employee ? ($employee->name ?? 'User') : 'User'),
+                               ];
+                           });
+
+        $now = Carbon::now();
         $metrics = [
-            'pendingApprovals'      => 12,
-            'approvedThisMonth'     => 45,
-            'rejectedThisMonth'     => 3,
-            'employeesOnLeaveToday' => 8,
+            'pendingApprovals'      => LeaveRequest::where('status', 'Pending')->count(),
+            'approvedThisMonth'     => LeaveRequest::where('status', 'Approved')
+                                          ->whereMonth('updated_at', $now->month)
+                                          ->whereYear('updated_at', $now->year)
+                                          ->count(),
+            'rejectedThisMonth'     => LeaveRequest::where('status', 'Rejected')
+                                          ->whereMonth('updated_at', $now->month)
+                                          ->whereYear('updated_at', $now->year)
+                                          ->count(),
+            'employeesOnLeaveToday' => LeaveRequest::where('status', 'Approved')
+                                          ->where('start_date', '<=', $now->toDateString())
+                                          ->where('end_date', '>=', $now->toDateString())
+                                          ->count(),
         ];
 
         $data = [
-            'requests' => $requests,
+            'requests' => $leaveData,
             'metrics'  => $metrics,
         ];
 
         return $this->successResponse($data, 'Leaves retrieved successfully');
+    }
+
+    /**
+     * Format leave type for display.
+     */
+    private function formatLeaveType(string $type): string
+    {
+        $types = [
+            'Annual'   => 'Annual Leave (Cuti Tahunan)',
+            'Sick'     => 'Sick Leave (Sakit)',
+            'Personal' => 'Personal Leave (Izin Pribadi)',
+            'Maternity'=> 'Maternity Leave (Cuti Melahirkan)',
+        ];
+
+        return $types[$type] ?? $type;
     }
 
     /**

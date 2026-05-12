@@ -3,7 +3,8 @@
 namespace App\Http\Controllers\Api\V1\Hris;
 
 use App\Http\Controllers\Controller;
-use App\Models\AttendanceLog;
+use App\Models\Employee;
+use App\Models\Presence;
 use App\Traits\ApiResponseTrait;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -14,52 +15,75 @@ class AttendanceController extends Controller
 
     /**
      * GET /api/v1/hris/attendance
-     * List attendance logs, filterable by date and status.
+     * List attendance logs from presensi_db.presences (real-time data).
      */
     public function index(Request $request)
     {
         $limit = $request->get('limit', 10);
         $date = $request->get('date');
         $status = $request->get('status');
-        
-        $query = AttendanceLog::with('employee:id,nama_karyawan,departemen,jabatan,foto');
+
+        $query = Presence::with('presensiUser:id,name,email');
 
         if ($date) {
             $query->whereDate('date', $date);
         }
 
         if ($status) {
-            $query->where('status', $status);
+            // Map frontend status to DB values
+            $statusMap = [
+                'On Time' => ['present', 'Tepat Waktu'],
+                'Late'    => ['late', 'Terlambat'],
+            ];
+            if (isset($statusMap[$status])) {
+                $query->whereIn('status', $statusMap[$status]);
+            } else {
+                $query->where('status', $status);
+            }
         }
 
         $logsData = $query->orderBy('date', 'desc')
-                          ->orderBy('check_in', 'desc')
+                          ->orderBy('clock_in', 'desc')
                           ->limit($limit)
                           ->get()
-                          ->map(function ($log) {
-                              $employee = $log->employee;
+                          ->map(function ($presence) {
+                              $user = $presence->presensiUser;
+                              $userName = $user ? $user->name : 'Unknown';
+
                               return [
-                                  'id'               => 'ATT-' . str_pad($log->id, 4, '0', STR_PAD_LEFT),
-                                  'employeeName'     => $employee ? ($employee->nama_karyawan ?? 'Unknown') : 'Unknown',
-                                  'employeeId'       => $log->employee_id ? 'EMP-' . str_pad($log->employee_id, 3, '0', STR_PAD_LEFT) : 'Unknown',
-                                  'department'       => $employee ? ($employee->departemen ?? 'General') : 'General',
-                                  'date'             => $log->date->format('Y-m-d'),
-                                  'checkIn'          => $log->check_in ? $log->check_in->format('H:i A') : null,
-                                  'checkOut'         => $log->check_out ? $log->check_out->format('H:i A') : null,
-                                  'status'           => $log->status,
-                                  'checkInLocation'  => $log->notes ?? 'Kantor', // Fallback if no location data available
-                                  'checkOutLocation' => $log->notes ?? 'Kantor',
-                                  'avatar'           => $employee && $employee->foto ? $employee->foto : 'https://ui-avatars.com/api/?name=' . urlencode($employee ? ($employee->nama_karyawan ?? 'User') : 'User')
+                                  'id'               => 'ATT-' . str_pad($presence->id, 4, '0', STR_PAD_LEFT),
+                                  'employeeName'     => $userName,
+                                  'employeeId'       => $presence->user_id ? 'EMP-' . str_pad($presence->user_id, 3, '0', STR_PAD_LEFT) : 'Unknown',
+                                  'department'       => 'General',
+                                  'date'             => $presence->date->format('Y-m-d'),
+                                  'checkIn'          => $presence->clock_in ? Carbon::parse($presence->clock_in)->format('h:i A') : null,
+                                  'checkOut'         => $presence->clock_out ? Carbon::parse($presence->clock_out)->format('h:i A') : null,
+                                  'status'           => $presence->normalized_status,
+                                  'checkInLocation'  => ($presence->latitude_in && $presence->longitude_in)
+                                      ? "{$presence->latitude_in}, {$presence->longitude_in}"
+                                      : 'Kantor',
+                                  'checkOutLocation' => ($presence->latitude_out && $presence->longitude_out)
+                                      ? "{$presence->latitude_out}, {$presence->longitude_out}"
+                                      : 'Kantor',
+                                  'avatar'           => 'https://ui-avatars.com/api/?name=' . urlencode($userName),
                               ];
                           });
 
+        // Metrics from real presensi data
         $today = Carbon::today()->toDateString();
         $totalEmployees = Employee::where('aktif', 'Y')->count();
-        $presentToday = AttendanceLog::whereDate('date', $today)
-                                     ->whereIn('status', ['On Time', 'Late', 'Half Day'])
-                                     ->count();
-        $lateToday = AttendanceLog::whereDate('date', $today)->where('status', 'Late')->count();
-        $absentToday = AttendanceLog::whereDate('date', $today)->where('status', 'Absent')->count();
+        $presentToday = Presence::whereDate('date', $today)
+                                ->whereIn('status', ['present', 'Tepat Waktu'])
+                                ->distinct('user_id')
+                                ->count('user_id');
+        $lateToday = Presence::whereDate('date', $today)
+                             ->whereIn('status', ['late', 'Terlambat'])
+                             ->distinct('user_id')
+                             ->count('user_id');
+        $totalLoggedToday = Presence::whereDate('date', $today)
+                                    ->distinct('user_id')
+                                    ->count('user_id');
+        $absentToday = $totalEmployees - $totalLoggedToday;
 
         $data = [
             'logs'    => $logsData,
@@ -67,7 +91,7 @@ class AttendanceController extends Controller
                 'totalEmployees' => $totalEmployees,
                 'presentToday'   => $presentToday,
                 'lateToday'      => $lateToday,
-                'absentToday'    => $absentToday,
+                'absentToday'    => max(0, $absentToday),
             ]
         ];
 
@@ -76,7 +100,7 @@ class AttendanceController extends Controller
 
     /**
      * GET /api/v1/hris/attendance/stats
-     * Today's attendance summary.
+     * Today's attendance summary from presensi_db.
      */
     public function stats(Request $request)
     {
@@ -84,14 +108,19 @@ class AttendanceController extends Controller
 
         $stats = [
             'date'      => $date,
-            'on_time'   => AttendanceLog::whereDate('date', $date)->where('status', 'On Time')->count(),
-            'late'      => AttendanceLog::whereDate('date', $date)->where('status', 'Late')->count(),
-            'absent'    => AttendanceLog::whereDate('date', $date)->where('status', 'Absent')->count(),
-            'half_day'  => AttendanceLog::whereDate('date', $date)->where('status', 'Half Day')->count(),
-            'remote'    => AttendanceLog::whereDate('date', $date)->where('work_type', 'Remote')->count(),
-            'on_site'   => AttendanceLog::whereDate('date', $date)->where('work_type', 'On-Site')->count(),
-            'total'     => AttendanceLog::whereDate('date', $date)->count(),
+            'on_time'   => Presence::whereDate('date', $date)->whereIn('status', ['present', 'Tepat Waktu'])->count(),
+            'late'      => Presence::whereDate('date', $date)->whereIn('status', ['late', 'Terlambat'])->count(),
+            'absent'    => 0, // Calculated: total_employees - total_logged
+            'half_day'  => 0,
+            'remote'    => 0,
+            'on_site'   => Presence::whereDate('date', $date)->count(),
+            'total'     => Presence::whereDate('date', $date)->count(),
         ];
+
+        // Calculate absent
+        $totalEmployees = Employee::where('aktif', 'Y')->count();
+        $totalLogged = Presence::whereDate('date', $date)->distinct('user_id')->count('user_id');
+        $stats['absent'] = max(0, $totalEmployees - $totalLogged);
 
         return $this->successResponse($stats);
     }

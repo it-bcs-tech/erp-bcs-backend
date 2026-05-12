@@ -9,6 +9,9 @@ class ActivityLog extends Model
 {
     use HasFactory;
 
+    protected $connection = 'pgsql';
+    protected $table = 'erp.activity_logs';
+
     protected $fillable = [
         'type',         // employee_joined, leave_approved, policy_changed, etc.
         'description',
@@ -27,6 +30,6 @@ class ActivityLog extends Model
 
     public function employee()
     {
-        return $this->belongsTo(Employee::class);
+        return $this->belongsTo(ErpEmployee::class, 'employee_id');
     }
 }

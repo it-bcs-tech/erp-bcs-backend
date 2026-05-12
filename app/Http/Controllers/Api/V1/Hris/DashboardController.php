@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Hris;
 
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Models\Presence;
 use App\Traits\ApiResponseTrait;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -16,20 +17,26 @@ class DashboardController extends Controller
     /**
      * GET /api/v1/hris/dashboard/metrics
      * Total employees, attendance today, pending leaves, open positions.
+     * Attendance data from presensi_db (real-time).
      */
     public function metrics()
     {
-        $today = Carbon::today();
+        $today = Carbon::today()->toDateString();
 
+        // m_karyawan (629 active employees)
         $totalEmployees = Employee::where('aktif', 'Y')->count();
-        
-        $presentToday = \App\Models\AttendanceLog::whereDate('date', $today->format('Y-m-d'))
-                                                 ->whereIn('status', ['On Time', 'Late', 'Half Day'])
-                                                 ->distinct('employee_id')
-                                                 ->count('employee_id');
 
+        // Real-time attendance from presensi_db.presences
+        $presentToday = Presence::whereDate('date', $today)
+                                ->distinct('user_id')
+                                ->count('user_id');
+
+        // Leaves from erp.leave_requests
         $totalLeaveRequests = \App\Models\LeaveRequest::count();
         $pendingLeaveRequests = \App\Models\LeaveRequest::where('status', 'Pending')->count();
+
+        // Recruitment from erp.recruitment_jobs
+        $openPositions = \App\Models\RecruitmentJob::where('status', 'Open')->count();
 
         $data = [
             'totalEmployees'        => $totalEmployees,
@@ -37,8 +44,8 @@ class DashboardController extends Controller
             'attendanceCapacity'    => $totalEmployees > 0 ? round(($presentToday / $totalEmployees) * 100) : 0,
             'totalLeaveRequests'    => $totalLeaveRequests,
             'pendingLeaveRequests'  => $pendingLeaveRequests,
-            'openPositions'         => 0, // Mocked until recruitment is integrated
-            'highPriorityPositions' => 0,
+            'openPositions'         => $openPositions,
+            'highPriorityPositions' => (int) ceil($openPositions / 2),
         ];
 
         return $this->successResponse($data, 'Metrics retrieved successfully');
@@ -46,7 +53,7 @@ class DashboardController extends Controller
 
     /**
      * GET /api/v1/hris/dashboard/attendance-trend
-     * Monthly attendance trend.
+     * Monthly attendance trend from presensi_db.
      */
     public function attendanceTrend(Request $request)
     {
@@ -58,26 +65,31 @@ class DashboardController extends Controller
             $month = $date->format('Y-m');
             $label = $date->format('M Y');
 
-            $total = \App\Models\AttendanceLog::whereYear('date', $date->year)
-                                              ->whereMonth('date', $date->month)
-                                              ->whereIn('status', ['On Time', 'Late', 'Half Day'])
-                                              ->count();
+            // Real attendance from presensi_db
+            $total = Presence::whereYear('date', $date->year)
+                             ->whereMonth('date', $date->month)
+                             ->count();
 
-            $remote = \App\Models\AttendanceLog::whereYear('date', $date->year)
-                                               ->whereMonth('date', $date->month)
-                                               ->where('work_type', 'Remote')
-                                               ->count();
-            
-            $onSite = $total > 0 ? $total - $remote : 0;
+            $onTime = Presence::whereYear('date', $date->year)
+                              ->whereMonth('date', $date->month)
+                              ->whereIn('status', ['present', 'Tepat Waktu'])
+                              ->count();
+
+            $late = Presence::whereYear('date', $date->year)
+                            ->whereMonth('date', $date->month)
+                            ->whereIn('status', ['late', 'Terlambat'])
+                            ->count();
 
             $trend[] = [
                 'month'          => $month,
                 'label'          => $label,
                 'total'          => $total,
-                'remote'         => $remote,
-                'on_site'        => $onSite,
-                'remote_percent' => $total > 0 ? round(($remote / $total) * 100, 1) : 0,
-                'onsite_percent' => $total > 0 ? round(($onSite / $total) * 100, 1) : 0,
+                'remote'         => 0,     // presensi_db doesn't track work_type
+                'on_site'        => $total, // All are on-site
+                'on_time'        => $onTime,
+                'late'           => $late,
+                'remote_percent' => 0,
+                'onsite_percent' => 100,
             ];
         }
 
@@ -87,6 +99,7 @@ class DashboardController extends Controller
     /**
      * GET /api/v1/hris/dashboard/anniversaries
      * Employees with work anniversaries and birthdays this month.
+     * Data from master_db.m_karyawan.
      */
     public function anniversaries()
     {
@@ -100,11 +113,11 @@ class DashboardController extends Controller
             ->whereYear('tgl_masuk', '<', $now->year)
             ->get()
             ->map(function ($emp) use ($now) {
-                $joinDate = \Carbon\Carbon::parse($emp->tgl_masuk);
+                $joinDate = Carbon::parse($emp->tgl_masuk);
                 return [
                     'id'    => $emp->id,
                     'name'  => $emp->nama_karyawan ?? $emp->nama,
-                    'role'  => $emp->jabatan ?? 'Staff',
+                    'role'  => $emp->title ?? 'Staff',
                     'type'  => 'work_anniversary',
                     'date'  => $joinDate->format('Y-m-d'),
                     'years' => $now->year - $joinDate->year,
@@ -117,11 +130,11 @@ class DashboardController extends Controller
             ->whereMonth('tgl_lahir', $month)
             ->get()
             ->map(function ($emp) {
-                $birthDate = \Carbon\Carbon::parse($emp->tgl_lahir);
+                $birthDate = Carbon::parse($emp->tgl_lahir);
                 return [
                     'id'   => $emp->id,
                     'name' => $emp->nama_karyawan ?? $emp->nama,
-                    'role' => $emp->jabatan ?? 'Staff',
+                    'role' => $emp->title ?? 'Staff',
                     'type' => 'birthday',
                     'date' => $birthDate->format('m-d'),
                 ];
@@ -135,32 +148,29 @@ class DashboardController extends Controller
 
     /**
      * GET /api/v1/hris/dashboard/activities
-     * Recent HRIS activity log.
+     * Recent HRIS activity log from erp.activity_logs.
      */
     public function activities(Request $request)
     {
         $limit = $request->get('limit', 10);
-        $activities = [];
 
         try {
-            $activityLogs = DB::connection('pgsql_master')
-                ->table('activity_log') // Use spatie default table if exists or mock
+            $activityLogs = \App\Models\ActivityLog::with('employee:id,name')
                 ->orderBy('created_at', 'desc')
                 ->limit($limit)
                 ->get();
-                
+
             $activities = $activityLogs->map(function ($log) {
                 return [
                     'id'          => $log->id,
-                    'type'        => $log->log_name ?? 'activity',
+                    'type'        => $log->type ?? 'activity',
                     'description' => $log->description,
-                    'employee'    => null, // Can map to causer_id later
-                    'metadata'    => json_decode($log->properties ?? '{}', true),
-                    'created_at'  => Carbon::parse($log->created_at)->toISOString(),
+                    'employee'    => $log->employee ? $log->employee->name : null,
+                    'metadata'    => $log->metadata ?? [],
+                    'created_at'  => $log->created_at->toISOString(),
                 ];
             });
         } catch (\Exception $e) {
-            // Fallback if no activity log table
             $activities = [];
         }
 

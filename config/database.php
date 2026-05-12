@@ -95,7 +95,7 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => env('DB_SCHEMA', 'presensi') . ',master',  // Menangkap skema presensi + master untuk cross-schema query
+            'search_path' => env('DB_SCHEMA', 'public') . ',erp',  // Cross-schema: public (m_karyawan, m_presensi) + erp (ERP tables)
             'sslmode' => 'prefer',
             'options' => [
                 PDO::ATTR_PERSISTENT => false,
@@ -115,22 +115,22 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'master',
+            'search_path' => 'public',  // m_karyawan, m_presensi live in public schema
             'sslmode' => 'prefer',
         ],
 
-        // Koneksi ke schema presensi (untuk ambil data absensi)
+        // Koneksi ke presensi_db (data absensi real-time: presences, leaves, users)
         'pgsql_presensi' => [
             'driver' => 'pgsql',
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_DATABASE', 'mybcs_db'),
-            'username' => env('DB_USERNAME', 'bcs_admin'),
+            'database' => env('DB_PRESENSI_DATABASE', 'presensi_db'),
+            'username' => env('DB_USERNAME', 'postgres'),
             'password' => env('DB_PASSWORD', 'postgres'),
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => env('DB_SCHEMA', 'presensi') . ',master',
+            'search_path' => 'public',
             'sslmode' => 'prefer',
         ],
 
