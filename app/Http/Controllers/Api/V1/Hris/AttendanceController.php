@@ -23,7 +23,7 @@ class AttendanceController extends Controller
         $date = $request->get('date');
         $status = $request->get('status');
 
-        $query = Presence::with('presensiUser:id,name,email');
+        $query = Presence::with('User:id,name,email');
 
         if ($date) {
             $query->whereDate('date', $date);
@@ -47,7 +47,7 @@ class AttendanceController extends Controller
                           ->limit($limit)
                           ->get()
                           ->map(function ($presence) {
-                              $user = $presence->presensiUser;
+                              $user = $presence->User;
                               $userName = $user ? $user->name : 'Unknown';
 
                               return [
