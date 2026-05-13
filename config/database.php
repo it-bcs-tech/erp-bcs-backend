@@ -95,7 +95,7 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => env('DB_SCHEMA', 'public') . ',erp',  // Cross-schema: public (m_karyawan, m_presensi) + erp (ERP tables)
+            'search_path' => env('DB_SCHEMA', 'presensi') . ',master',  // Cross-schema: public (m_karyawan, m_presensi) + erp (ERP tables)
             'sslmode' => 'prefer',
             'options' => [
                 PDO::ATTR_PERSISTENT => false,
@@ -115,7 +115,7 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'public',  // m_karyawan, m_presensi live in public schema
+            'search_path' => 'master',  // m_karyawan, m_presensi live in public schema
             'sslmode' => 'prefer',
         ],
 
@@ -124,13 +124,13 @@ return [
             'driver' => 'pgsql',
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_PRESENSI_DATABASE', 'presensi_db'),
-            'username' => env('DB_USERNAME', 'postgres'),
+            'database' => env('DB_DATABASE', 'mybcs_db'),
+            'username' => env('DB_USERNAME', 'bcs_admin'),
             'password' => env('DB_PASSWORD', 'postgres'),
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'public',
+            'search_path' => env('DB_SCHEMA', 'presensi') . ',master',
             'sslmode' => 'prefer',
         ],
 
