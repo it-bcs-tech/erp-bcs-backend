@@ -79,4 +79,9 @@ class User extends Authenticatable implements JWTSubject
     {
         return $this->hasOne(Employee::class);
     }
+
+     public function presences()
+    {
+        return $this->hasMany(Presence::class, 'user_id');
+    }
 }
