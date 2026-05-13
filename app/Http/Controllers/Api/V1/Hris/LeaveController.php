@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Api\V1\Hris;
 
 use App\Http\Controllers\Controller;
-use App\Models\ActivityLog;
 use App\Models\LeaveRequest;
 use App\Traits\ApiResponseTrait;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class LeaveController extends Controller
@@ -16,60 +16,81 @@ class LeaveController extends Controller
 
     /**
      * GET /api/v1/hris/leaves
-     * List all leave requests with filters.
+     * List all leave requests from presensi.leaves table.
+     *
+     * Server table 'leaves' columns may differ from local.
+     * Common columns: id, user_id, type/leave_type, start_date, end_date,
+     *                 reason, status, approved_by, created_at, updated_at
      */
     public function index(Request $request)
     {
         $limit = $request->get('limit', 50);
         $status = $request->get('status');
 
-        $query = LeaveRequest::with('employee:id,name,email,role,avatar');
+        try {
+            $query = DB::connection('pgsql')->table('leaves');
 
-        if ($status) {
-            $query->where('status', $status);
+            if ($status) {
+                $query->where('status', $status);
+            }
+
+            $leaves = $query->orderBy('created_at', 'desc')
+                            ->limit($limit)
+                            ->get();
+
+            $leaveData = $leaves->map(function ($leave) {
+                $startDate = Carbon::parse($leave->start_date ?? $leave->created_at);
+                $endDate = Carbon::parse($leave->end_date ?? $leave->start_date ?? $leave->created_at);
+                $duration = $startDate->diffInDays($endDate) + 1;
+
+                // Try to get employee name from user relation or properties
+                $employeeName = $leave->employee_name ?? $leave->user_name ?? 'Employee';
+
+                // Try different column names for leave type
+                $leaveType = $leave->type ?? $leave->leave_type ?? $leave->category ?? 'Leave';
+
+                return [
+                    'id'           => 'LV-' . $startDate->format('Y') . '-' . str_pad($leave->id, 3, '0', STR_PAD_LEFT),
+                    'employeeName' => $employeeName,
+                    'employeeId'   => 'EMP-' . str_pad($leave->user_id ?? $leave->employee_id ?? $leave->id, 3, '0', STR_PAD_LEFT),
+                    'type'         => $this->formatLeaveType($leaveType),
+                    'startDate'    => $startDate->format('Y-m-d'),
+                    'endDate'      => $endDate->format('Y-m-d'),
+                    'duration'     => $duration,
+                    'reason'       => $leave->reason ?? $leave->notes ?? '-',
+                    'status'       => $leave->status ?? 'Pending',
+                    'avatar'       => 'https://ui-avatars.com/api/?name=' . urlencode($employeeName),
+                ];
+            });
+
+            $now = Carbon::now();
+            $metrics = [
+                'pendingApprovals'      => DB::connection('pgsql')->table('leaves')->where('status', 'Pending')->count(),
+                'approvedThisMonth'     => DB::connection('pgsql')->table('leaves')
+                                              ->where('status', 'Approved')
+                                              ->whereMonth('updated_at', $now->month)
+                                              ->whereYear('updated_at', $now->year)
+                                              ->count(),
+                'rejectedThisMonth'     => DB::connection('pgsql')->table('leaves')
+                                              ->where('status', 'Rejected')
+                                              ->whereMonth('updated_at', $now->month)
+                                              ->whereYear('updated_at', $now->year)
+                                              ->count(),
+                'employeesOnLeaveToday' => DB::connection('pgsql')->table('leaves')
+                                              ->where('status', 'Approved')
+                                              ->where('start_date', '<=', $now->toDateString())
+                                              ->where('end_date', '>=', $now->toDateString())
+                                              ->count(),
+            ];
+        } catch (\Exception $e) {
+            $leaveData = [];
+            $metrics = [
+                'pendingApprovals'      => 0,
+                'approvedThisMonth'     => 0,
+                'rejectedThisMonth'     => 0,
+                'employeesOnLeaveToday' => 0,
+            ];
         }
-
-        $leaveData = $query->orderBy('created_at', 'desc')
-                           ->limit($limit)
-                           ->get()
-                           ->map(function ($leave) {
-                               $employee = $leave->employee;
-                               $startDate = \Carbon\Carbon::parse($leave->start_date);
-                               $endDate = \Carbon\Carbon::parse($leave->end_date);
-                               $duration = $startDate->diffInDays($endDate) + 1;
-
-                               return [
-                                   'id'           => 'LV-' . $startDate->format('Y') . '-' . str_pad($leave->id, 3, '0', STR_PAD_LEFT),
-                                   'employeeName' => $employee ? ($employee->name ?? 'Unknown') : 'Unknown',
-                                   'employeeId'   => $employee ? 'EMP-' . str_pad($employee->id, 3, '0', STR_PAD_LEFT) : 'Unknown',
-                                   'type'         => $this->formatLeaveType($leave->type),
-                                   'startDate'    => $startDate->format('Y-m-d'),
-                                   'endDate'      => $endDate->format('Y-m-d'),
-                                   'duration'     => $duration,
-                                   'reason'       => $leave->reason ?? '-',
-                                   'status'       => $leave->status,
-                                   'avatar'       => $employee && $employee->avatar
-                                       ? $employee->avatar
-                                       : 'https://ui-avatars.com/api/?name=' . urlencode($employee ? ($employee->name ?? 'User') : 'User'),
-                               ];
-                           });
-
-        $now = Carbon::now();
-        $metrics = [
-            'pendingApprovals'      => LeaveRequest::where('status', 'Pending')->count(),
-            'approvedThisMonth'     => LeaveRequest::where('status', 'Approved')
-                                          ->whereMonth('updated_at', $now->month)
-                                          ->whereYear('updated_at', $now->year)
-                                          ->count(),
-            'rejectedThisMonth'     => LeaveRequest::where('status', 'Rejected')
-                                          ->whereMonth('updated_at', $now->month)
-                                          ->whereYear('updated_at', $now->year)
-                                          ->count(),
-            'employeesOnLeaveToday' => LeaveRequest::where('status', 'Approved')
-                                          ->where('start_date', '<=', $now->toDateString())
-                                          ->where('end_date', '>=', $now->toDateString())
-                                          ->count(),
-        ];
 
         $data = [
             'requests' => $leaveData,
@@ -85,13 +106,20 @@ class LeaveController extends Controller
     private function formatLeaveType(string $type): string
     {
         $types = [
-            'Annual'   => 'Annual Leave (Cuti Tahunan)',
-            'Sick'     => 'Sick Leave (Sakit)',
-            'Personal' => 'Personal Leave (Izin Pribadi)',
-            'Maternity'=> 'Maternity Leave (Cuti Melahirkan)',
+            'Annual'    => 'Annual Leave (Cuti Tahunan)',
+            'annual'    => 'Annual Leave (Cuti Tahunan)',
+            'Sick'      => 'Sick Leave (Sakit)',
+            'sick'      => 'Sick Leave (Sakit)',
+            'Personal'  => 'Personal Leave (Izin Pribadi)',
+            'personal'  => 'Personal Leave (Izin Pribadi)',
+            'Maternity' => 'Maternity Leave (Cuti Melahirkan)',
+            'maternity' => 'Maternity Leave (Cuti Melahirkan)',
+            'cuti'      => 'Cuti',
+            'izin'      => 'Izin',
+            'sakit'     => 'Sakit',
         ];
 
-        return $types[$type] ?? $type;
+        return $types[$type] ?? ucfirst($type);
     }
 
     /**
@@ -102,20 +130,32 @@ class LeaveController extends Controller
     {
         $now = Carbon::now();
 
-        $stats = [
-            'total_pending'        => LeaveRequest::where('status', 'Pending')->count(),
-            'total_approved_month' => LeaveRequest::where('status', 'Approved')
-                                        ->whereMonth('updated_at', $now->month)
-                                        ->whereYear('updated_at', $now->year)
-                                        ->count(),
-            'total_rejected_month' => LeaveRequest::where('status', 'Rejected')
-                                        ->whereMonth('updated_at', $now->month)
-                                        ->whereYear('updated_at', $now->year)
-                                        ->count(),
-            'total_this_month'     => LeaveRequest::whereMonth('created_at', $now->month)
-                                        ->whereYear('created_at', $now->year)
-                                        ->count(),
-        ];
+        try {
+            $stats = [
+                'total_pending'        => DB::connection('pgsql')->table('leaves')->where('status', 'Pending')->count(),
+                'total_approved_month' => DB::connection('pgsql')->table('leaves')
+                                             ->where('status', 'Approved')
+                                             ->whereMonth('updated_at', $now->month)
+                                             ->whereYear('updated_at', $now->year)
+                                             ->count(),
+                'total_rejected_month' => DB::connection('pgsql')->table('leaves')
+                                             ->where('status', 'Rejected')
+                                             ->whereMonth('updated_at', $now->month)
+                                             ->whereYear('updated_at', $now->year)
+                                             ->count(),
+                'total_this_month'     => DB::connection('pgsql')->table('leaves')
+                                             ->whereMonth('created_at', $now->month)
+                                             ->whereYear('created_at', $now->year)
+                                             ->count(),
+            ];
+        } catch (\Exception $e) {
+            $stats = [
+                'total_pending'        => 0,
+                'total_approved_month' => 0,
+                'total_rejected_month' => 0,
+                'total_this_month'     => 0,
+            ];
+        }
 
         return $this->successResponse($stats);
     }
@@ -126,7 +166,7 @@ class LeaveController extends Controller
      */
     public function updateStatus(Request $request, string $id)
     {
-        $leave = LeaveRequest::with('employee:id,name')->find($id);
+        $leave = DB::connection('pgsql')->table('leaves')->find($id);
 
         if (!$leave) {
             return $this->errorResponse('Leave request not found', 'ERR_NOT_FOUND', 404);
@@ -145,31 +185,13 @@ class LeaveController extends Controller
             );
         }
 
-        $leave->update([
-            'status' => $request->status,
-            'notes'  => $request->notes,
-        ]);
+        DB::connection('pgsql')->table('leaves')
+            ->where('id', $id)
+            ->update([
+                'status'     => $request->status,
+                'updated_at' => now(),
+            ]);
 
-        // Log the activity
-        $action = $request->status === 'Approved' ? 'approved' : 'rejected';
-        ActivityLog::create([
-            'type'        => "leave_{$action}",
-            'description' => "{$leave->employee->name}'s {$leave->type} leave has been {$action}",
-            'employee_id' => $leave->employee_id,
-            'metadata'    => [
-                'leave_id'   => $leave->id,
-                'leave_type' => $leave->type,
-                'start_date' => $leave->start_date->toDateString(),
-                'end_date'   => $leave->end_date->toDateString(),
-            ],
-        ]);
-
-        // Deduct leave balance if approved
-        if ($request->status === 'Approved' && $leave->employee) {
-            $days = $leave->start_date->diffInDays($leave->end_date) + 1;
-            $leave->employee->decrement('leave_balance', $days);
-        }
-
-        return $this->successResponse($leave, "Leave request {$action} successfully");
+        return $this->successResponse($leave, "Leave request {$request->status} successfully");
     }
 }

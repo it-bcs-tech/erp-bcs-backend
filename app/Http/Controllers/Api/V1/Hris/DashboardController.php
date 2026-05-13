@@ -31,12 +31,21 @@ class DashboardController extends Controller
                                 ->distinct('user_id')
                                 ->count('user_id');
 
-        // Leaves from erp.leave_requests
-        $totalLeaveRequests = \App\Models\LeaveRequest::count();
-        $pendingLeaveRequests = \App\Models\LeaveRequest::where('status', 'Pending')->count();
+        // Leaves from presensi.leaves
+        try {
+            $totalLeaveRequests = DB::connection('pgsql')->table('leaves')->count();
+            $pendingLeaveRequests = DB::connection('pgsql')->table('leaves')->where('status', 'Pending')->count();
+        } catch (\Exception $e) {
+            $totalLeaveRequests = 0;
+            $pendingLeaveRequests = 0;
+        }
 
-        // Recruitment from erp.recruitment_jobs
-        $openPositions = \App\Models\RecruitmentJob::where('status', 'Open')->count();
+        // Recruitment (tabel mungkin belum ada di server)
+        try {
+            $openPositions = \App\Models\RecruitmentJob::where('status', 'Open')->count();
+        } catch (\Exception $e) {
+            $openPositions = 0;
+        }
 
         $data = [
             'totalEmployees'        => $totalEmployees,
@@ -148,26 +157,35 @@ class DashboardController extends Controller
 
     /**
      * GET /api/v1/hris/dashboard/activities
-     * Recent HRIS activity log from erp.activity_logs.
+     * Recent HRIS activity log from presensi.activity_log.
      */
     public function activities(Request $request)
     {
         $limit = $request->get('limit', 10);
 
         try {
-            $activityLogs = \App\Models\ActivityLog::with('employee:id,name')
-                ->orderBy('created_at', 'desc')
+            $activityLogs = \App\Models\ActivityLog::orderBy('created_at', 'desc')
                 ->limit($limit)
                 ->get();
 
             $activities = $activityLogs->map(function ($log) {
+                // Spatie format: log_name, description, subject_type/id, causer_type/id, properties
+                $properties = $log->metadata ?? [];
+                $causerName = $properties['causer_name'] ?? null;
+
+                // Try to get causer name from causer relation if available
+                if (!$causerName && $log->causer_id) {
+                    $causer = \App\Models\Employee::find($log->causer_id);
+                    $causerName = $causer ? ($causer->nama_karyawan ?? $causer->nama) : null;
+                }
+
                 return [
                     'id'          => $log->id,
                     'type'        => $log->type ?? 'activity',
                     'description' => $log->description,
-                    'employee'    => $log->employee ? $log->employee->name : null,
-                    'metadata'    => $log->metadata ?? [],
-                    'created_at'  => $log->created_at->toISOString(),
+                    'employee'    => $causerName,
+                    'metadata'    => $properties,
+                    'created_at'  => $log->created_at ? $log->created_at->toISOString() : null,
                 ];
             });
         } catch (\Exception $e) {

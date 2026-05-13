@@ -15,57 +15,72 @@ class LifecycleController extends Controller
     /**
      * GET /api/v1/hris/lifecycle
      * Menampilkan riwayat promosi, mutasi, terminasi, dan SP.
-     * Data diambil dari activity_logs yang bertipe lifecycle.
+     * Data diambil dari activity_log (Spatie format) yang bertipe lifecycle.
+     *
+     * Spatie activity_log columns: log_name, description, subject_type/id, causer_type/id, properties, event
      */
     public function index(Request $request)
     {
         $limit = $request->get('limit', 50);
         $type = $request->get('type'); // Mutation, Warning, Termination
 
-        // Query activity logs for lifecycle events
-        $query = ActivityLog::with('employee:id,name,role,avatar')
-            ->whereIn('type', [
+        try {
+            // Query activity_log for lifecycle events using log_name or event column
+            $query = ActivityLog::whereIn('log_name', [
                 'mutation', 'warning', 'termination', 'promotion',
                 'employee_joined', 'employee_terminated', 'employee_warned',
                 'employee_promoted', 'employee_mutated',
+                'lifecycle', 'hr',
             ]);
 
-        if ($type) {
-            $typeMap = [
-                'Mutation'    => ['mutation', 'employee_mutated'],
-                'Warning'     => ['warning', 'employee_warned'],
-                'Termination' => ['termination', 'employee_terminated'],
-                'Promotion'   => ['promotion', 'employee_promoted'],
-            ];
-            if (isset($typeMap[$type])) {
-                $query->whereIn('type', $typeMap[$type]);
+            if ($type) {
+                $typeMap = [
+                    'Mutation'    => ['mutation', 'employee_mutated'],
+                    'Warning'     => ['warning', 'employee_warned'],
+                    'Termination' => ['termination', 'employee_terminated'],
+                    'Promotion'   => ['promotion', 'employee_promoted'],
+                ];
+                if (isset($typeMap[$type])) {
+                    $query->whereIn('log_name', $typeMap[$type]);
+                }
             }
+
+            $actions = $query->orderBy('created_at', 'desc')
+                ->limit($limit)
+                ->get()
+                ->map(function ($log) {
+                    $displayType = $this->mapActivityType($log->log_name ?? $log->event ?? 'activity');
+                    $properties = $log->metadata ?? [];
+                    $employeeName = $properties['employee_name'] ?? $properties['causer_name'] ?? 'Unknown';
+
+                    return [
+                        'id'           => strtoupper(substr($displayType, 0, 3)) . '-' . now()->format('Y') . '-' . str_pad($log->id, 3, '0', STR_PAD_LEFT),
+                        'type'         => $displayType,
+                        'employeeName' => $employeeName,
+                        'employeeId'   => isset($properties['employee_id']) ? 'EMP-' . str_pad($properties['employee_id'], 3, '0', STR_PAD_LEFT) : 'Unknown',
+                        'date'         => $log->created_at ? $log->created_at->format('Y-m-d') : now()->format('Y-m-d'),
+                        'description'  => $log->description,
+                        'status'       => 'Completed',
+                    ];
+                });
+        } catch (\Exception $e) {
+            $actions = collect([]);
         }
 
-        $actions = $query->orderBy('created_at', 'desc')
-            ->limit($limit)
-            ->get()
-            ->map(function ($log) {
-                $employee = $log->employee;
-                $displayType = $this->mapActivityType($log->type);
-
-                return [
-                    'id'           => strtoupper(substr($displayType, 0, 3)) . '-' . now()->format('Y') . '-' . str_pad($log->id, 3, '0', STR_PAD_LEFT),
-                    'type'         => $displayType,
-                    'employeeName' => $employee ? ($employee->name ?? 'Unknown') : 'Unknown',
-                    'employeeId'   => $employee ? 'EMP-' . str_pad($employee->id, 3, '0', STR_PAD_LEFT) : 'Unknown',
-                    'date'         => $log->created_at->format('Y-m-d'),
-                    'description'  => $log->description,
-                    'status'       => 'Completed',
-                ];
-            });
-
-        // Metrics from real data
-        $metrics = [
-            'activeMutations'     => ActivityLog::whereIn('type', ['mutation', 'employee_mutated'])->count(),
-            'activeWarnings'      => ActivityLog::whereIn('type', ['warning', 'employee_warned'])->count(),
-            'pendingTerminations' => ActivityLog::whereIn('type', ['termination', 'employee_terminated'])->count(),
-        ];
+        // Metrics
+        try {
+            $metrics = [
+                'activeMutations'     => ActivityLog::whereIn('log_name', ['mutation', 'employee_mutated'])->count(),
+                'activeWarnings'      => ActivityLog::whereIn('log_name', ['warning', 'employee_warned'])->count(),
+                'pendingTerminations' => ActivityLog::whereIn('log_name', ['termination', 'employee_terminated'])->count(),
+            ];
+        } catch (\Exception $e) {
+            $metrics = [
+                'activeMutations'     => 0,
+                'activeWarnings'      => 0,
+                'pendingTerminations' => 0,
+            ];
+        }
 
         $data = [
             'actions' => $actions,
@@ -89,7 +104,9 @@ class LifecycleController extends Controller
             'employee_terminated'  => 'Termination',
             'promotion'            => 'Promotion',
             'employee_promoted'    => 'Promotion',
-            'employee_joined'      => 'Mutation', // New hire treated as mutation
+            'employee_joined'      => 'Mutation',
+            'lifecycle'            => 'Lifecycle',
+            'hr'                   => 'HR Action',
         ];
 
         return $map[$type] ?? ucfirst($type);

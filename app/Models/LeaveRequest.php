@@ -10,7 +10,7 @@ class LeaveRequest extends Model
     use HasFactory;
 
     protected $connection = 'pgsql';
-    protected $table = 'leave_requests';
+    protected $table = 'leaves';
 
     protected $fillable = [
         'employee_id',

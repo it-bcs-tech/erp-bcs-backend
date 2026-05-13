@@ -10,26 +10,43 @@ class ActivityLog extends Model
     use HasFactory;
 
     protected $connection = 'pgsql';
-    protected $table = 'activity_logs';
+    protected $table = 'activity_log';
 
+    // Spatie Activity Log columns:
+    // id, log_name, description, subject_type, subject_id,
+    // causer_type, causer_id, properties, event, batch_uuid, created_at, updated_at
     protected $fillable = [
-        'type',         // employee_joined, leave_approved, policy_changed, etc.
+        'log_name',
         'description',
-        'employee_id',
-        'metadata',
+        'subject_type',
+        'subject_id',
+        'causer_type',
+        'causer_id',
+        'properties',
+        'event',
     ];
 
     protected function casts(): array
     {
         return [
-            'metadata' => 'array',
+            'properties' => 'array',
         ];
     }
 
-    // ── Relationships ───────────────────────────────────
-
-    public function employee()
+    /**
+     * Accessor: map 'log_name' or 'event' as 'type' for backward compat.
+     */
+    public function getTypeAttribute()
     {
-        return $this->belongsTo(Employee::class, 'employee_id');
+        return $this->attributes['log_name'] ?? $this->attributes['event'] ?? 'activity';
+    }
+
+    /**
+     * Accessor: map 'properties' as 'metadata' for backward compat.
+     */
+    public function getMetadataAttribute()
+    {
+        $props = $this->attributes['properties'] ?? '[]';
+        return is_string($props) ? json_decode($props, true) : $props;
     }
 }
