@@ -14,7 +14,8 @@ class PerformanceController extends Controller
     /**
      * GET /api/v1/hris/performance
      * Menyediakan hasil evaluasi KPI karyawan dan informasi jadwal training/pelatihan.
-     * Data diambil dari erp.employees (performance_score) dan erp.activity_logs.
+     * Data diambil dari employees (performance_score) dan activity_logs.
+     * Schema ditentukan oleh search_path di config/database.php (ENV-based).
      */
     public function index(Request $request)
     {
@@ -22,19 +23,19 @@ class PerformanceController extends Controller
 
         // KPI Records from employees with performance_score
         $employees = DB::connection('pgsql')
-            ->table('erp.employees')
-            ->join('erp.departments', 'erp.employees.department_id', '=', 'erp.departments.id')
+            ->table('employees')
+            ->join('departments', 'employees.department_id', '=', 'departments.id')
             ->select(
-                'erp.employees.id',
-                'erp.employees.name',
-                'erp.employees.employee_code',
-                'erp.employees.role',
-                'erp.employees.performance_score',
-                'erp.departments.name as department_name'
+                'employees.id',
+                'employees.name',
+                'employees.employee_code',
+                'employees.role',
+                'employees.performance_score',
+                'departments.name as department_name'
             )
-            ->whereNotNull('erp.employees.performance_score')
-            ->where('erp.employees.performance_score', '>', 0)
-            ->orderBy('erp.employees.performance_score', 'desc')
+            ->whereNotNull('employees.performance_score')
+            ->where('employees.performance_score', '>', 0)
+            ->orderBy('employees.performance_score', 'desc')
             ->limit($limit)
             ->get();
 
@@ -59,7 +60,7 @@ class PerformanceController extends Controller
 
         // Training programs from activity_logs with training type
         $trainingLogs = DB::connection('pgsql')
-            ->table('erp.activity_logs')
+            ->table('activity_logs')
             ->where('type', 'like', '%training%')
             ->orderBy('created_at', 'desc')
             ->limit(10)
@@ -78,7 +79,7 @@ class PerformanceController extends Controller
 
         // Metrics from real data
         $allScores = DB::connection('pgsql')
-            ->table('erp.employees')
+            ->table('employees')
             ->whereNotNull('performance_score')
             ->where('performance_score', '>', 0)
             ->pluck('performance_score');

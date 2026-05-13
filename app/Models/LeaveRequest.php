@@ -10,7 +10,7 @@ class LeaveRequest extends Model
     use HasFactory;
 
     protected $connection = 'pgsql';
-    protected $table = 'erp.leave_requests';
+    protected $table = 'leave_requests';
 
     protected $fillable = [
         'employee_id',
@@ -35,11 +35,11 @@ class LeaveRequest extends Model
 
     public function employee()
     {
-        return $this->belongsTo(ErpEmployee::class, 'employee_id');
+        return $this->belongsTo(Employee::class, 'employee_id');
     }
 
     public function approver()
     {
-        return $this->belongsTo(ErpEmployee::class, 'approved_by');
+        return $this->belongsTo(Employee::class, 'approved_by');
     }
 }

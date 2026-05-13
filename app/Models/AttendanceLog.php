@@ -10,7 +10,7 @@ class AttendanceLog extends Model
     use HasFactory;
 
     protected $connection = 'pgsql';
-    protected $table = 'erp.attendance_logs';
+    protected $table = 'attendance_logs';
 
     protected $fillable = [
         'employee_id',
@@ -35,6 +35,6 @@ class AttendanceLog extends Model
 
     public function employee()
     {
-        return $this->belongsTo(ErpEmployee::class, 'employee_id');
+        return $this->belongsTo(Employee::class, 'employee_id');
     }
 }

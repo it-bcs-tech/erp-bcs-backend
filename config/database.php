@@ -84,18 +84,22 @@ return [
             ]) : [],
         ],
 
-         'pgsql' => [
+         // Koneksi utama — search_path mencakup kedua schema
+        // Server: presensi,master | Lokal: erp,public
+        'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '5433'),               // Default fallback 5433
+            'port' => env('DB_PORT', '5432'),
             'database' => env('DB_DATABASE', 'mybcs_db'),
             'username' => env('DB_USERNAME', 'bcs_admin'),
             'password' => env('DB_PASSWORD', ''),
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => env('DB_SCHEMA', 'presensi') . ',master',  // Cross-schema: public (m_karyawan, m_presensi) + erp (ERP tables)
+            // DB_SCHEMA = schema utama ERP (server: presensi, lokal: erp)
+            // DB_SCHEMA_SECOND = schema master (server: master, lokal: public)
+            'search_path' => env('DB_SCHEMA', 'presensi') . ',' . env('DB_SCHEMA_SECOND', 'master'),
             'sslmode' => 'prefer',
             'options' => [
                 PDO::ATTR_PERSISTENT => false,
@@ -104,33 +108,38 @@ return [
         ],
 
         // Koneksi ke schema master (untuk ambil data karyawan, divisi, dll)
+        // Menggunakan DB_*_SECOND env vars (sudah ada di server .env)
         'pgsql_master' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),
+            'host' => env('DB_HOST_SECOND', env('DB_HOST', '127.0.0.1')),
+            'port' => env('DB_PORT_SECOND', env('DB_PORT', '5432')),
+            'database' => env('DB_DATABASE_SECOND', env('DB_DATABASE', 'mybcs_db')),
+            'username' => env('DB_USERNAME_SECOND', env('DB_USERNAME', 'bcs_admin')),
+            'password' => env('DB_PASSWORD_SECOND', env('DB_PASSWORD', '')),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            // DB_SCHEMA_SECOND = master (server) / public (lokal)
+            'search_path' => env('DB_SCHEMA_SECOND', 'master'),
+            'sslmode' => 'prefer',
+        ],
+
+        // Koneksi ke data presensi (absensi real-time: presences, users)
+        // Lokal: database terpisah 'presensi_db', schema 'public'
+        // Server: database sama 'mybcs_db', schema 'presensi'
+        'pgsql_presensi' => [
+            'driver' => 'pgsql',
             'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '5433'),               // Default fallback 5433
-            'database' => env('DB_DATABASE', 'mybcs_db'),
+            'port' => env('DB_PORT', '5432'),
+            'database' => env('DB_PRESENSI_DATABASE', env('DB_DATABASE', 'mybcs_db')),
             'username' => env('DB_USERNAME', 'bcs_admin'),
             'password' => env('DB_PASSWORD', ''),
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'master',  // m_karyawan, m_presensi live in public schema
-            'sslmode' => 'prefer',
-        ],
-
-        // Koneksi ke presensi_db (data absensi real-time: presences, leaves, users)
-        'pgsql_presensi' => [
-            'driver' => 'pgsql',
-            'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_DATABASE', 'mybcs_db'),
-            'username' => env('DB_USERNAME', 'bcs_admin'),
-            'password' => env('DB_PASSWORD', 'postgres'),
-            'charset' => env('DB_CHARSET', 'utf8'),
-            'prefix' => '',
-            'prefix_indexes' => true,
-            'search_path' => env('DB_SCHEMA', 'presensi') . ',master',
+            // DB_SCHEMA = presensi (server) / public jika DB terpisah (lokal)
+            'search_path' => env('DB_PRESENSI_SCHEMA', env('DB_SCHEMA', 'presensi')),
             'sslmode' => 'prefer',
         ],
 
