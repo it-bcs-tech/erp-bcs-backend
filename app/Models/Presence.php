@@ -49,11 +49,11 @@ class Presence extends Model
     // ── Relationships ───────────────────────────────────
 
     /**
-     * User from presensi_db.users
+     * User from master_db.m_presensi
      */
-    public function presensiUser()
+    public function user()
     {
-        return $this->belongsTo(PresensiUser::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     // ── Helpers ─────────────────────────────────────────
