@@ -56,6 +56,11 @@ class Presence extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public function presensiUser()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
     // ── Helpers ─────────────────────────────────────────
 
     /**
