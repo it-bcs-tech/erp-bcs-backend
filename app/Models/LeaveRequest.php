@@ -9,11 +9,11 @@ class LeaveRequest extends Model
 {
     use HasFactory;
 
-    protected $connection = 'pgsql';
+    protected $connection = 'pgsql_presensi';
     protected $table = 'leaves';
 
     protected $fillable = [
-        'employee_id',
+        'user_id',
         'type',         // Annual, Sick, Personal, Maternity, etc.
         'start_date',
         'end_date',
@@ -33,13 +33,13 @@ class LeaveRequest extends Model
 
     // ── Relationships ───────────────────────────────────
 
-    public function employee()
+    public function User()
     {
-        return $this->belongsTo(Employee::class, 'employee_id');
+        return $this->belongsTo(User::class, 'user_id', 'id');
     }
 
     public function approver()
     {
-        return $this->belongsTo(Employee::class, 'approved_by');
+        return $this->belongsTo(User::class, 'approved_by', 'id');
     }
 }

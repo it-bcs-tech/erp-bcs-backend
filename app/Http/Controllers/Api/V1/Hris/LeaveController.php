@@ -28,7 +28,7 @@ class LeaveController extends Controller
         $status = $request->get('status');
 
         try {
-            $query = DB::connection('pgsql')->table('leaves');
+            $query = LeaveRequest::with('User');
 
             if ($status) {
                 $query->where('status', $status);
@@ -43,8 +43,9 @@ class LeaveController extends Controller
                 $endDate = Carbon::parse($leave->end_date ?? $leave->start_date ?? $leave->created_at);
                 $duration = $startDate->diffInDays($endDate) + 1;
 
-                // Try to get employee name from user relation or properties
-                $employeeName = $leave->employee_name ?? $leave->name ?? 'Employee';
+                // Use the User relation to get the employee name just like in AttendanceController
+                $userName = $leave->User ? $leave->User->name : 'Unknown';
+                $employeeName = $userName;
 
                 // Try different column names for leave type
                 $leaveType = $leave->type ?? $leave->leave_type ?? $leave->category ?? 'Leave';
@@ -65,19 +66,16 @@ class LeaveController extends Controller
 
             $now = Carbon::now();
             $metrics = [
-                'pendingApprovals'      => DB::connection('pgsql')->table('leaves')->where('status', 'Pending')->count(),
-                'approvedThisMonth'     => DB::connection('pgsql')->table('leaves')
-                                              ->where('status', 'Approved')
+                'pendingApprovals'      => LeaveRequest::where('status', 'Pending')->count(),
+                'approvedThisMonth'     => LeaveRequest::where('status', 'Approved')
                                               ->whereMonth('updated_at', $now->month)
                                               ->whereYear('updated_at', $now->year)
                                               ->count(),
-                'rejectedThisMonth'     => DB::connection('pgsql')->table('leaves')
-                                              ->where('status', 'Rejected')
+                'rejectedThisMonth'     => LeaveRequest::where('status', 'Rejected')
                                               ->whereMonth('updated_at', $now->month)
                                               ->whereYear('updated_at', $now->year)
                                               ->count(),
-                'employeesOnLeaveToday' => DB::connection('pgsql')->table('leaves')
-                                              ->where('status', 'Approved')
+                'employeesOnLeaveToday' => LeaveRequest::where('status', 'Approved')
                                               ->where('start_date', '<=', $now->toDateString())
                                               ->where('end_date', '>=', $now->toDateString())
                                               ->count(),
@@ -132,19 +130,16 @@ class LeaveController extends Controller
 
         try {
             $stats = [
-                'total_pending'        => DB::connection('pgsql')->table('leaves')->where('status', 'Pending')->count(),
-                'total_approved_month' => DB::connection('pgsql')->table('leaves')
-                                             ->where('status', 'Approved')
+                'total_pending'        => LeaveRequest::where('status', 'Pending')->count(),
+                'total_approved_month' => LeaveRequest::where('status', 'Approved')
                                              ->whereMonth('updated_at', $now->month)
                                              ->whereYear('updated_at', $now->year)
                                              ->count(),
-                'total_rejected_month' => DB::connection('pgsql')->table('leaves')
-                                             ->where('status', 'Rejected')
+                'total_rejected_month' => LeaveRequest::where('status', 'Rejected')
                                              ->whereMonth('updated_at', $now->month)
                                              ->whereYear('updated_at', $now->year)
                                              ->count(),
-                'total_this_month'     => DB::connection('pgsql')->table('leaves')
-                                             ->whereMonth('created_at', $now->month)
+                'total_this_month'     => LeaveRequest::whereMonth('created_at', $now->month)
                                              ->whereYear('created_at', $now->year)
                                              ->count(),
             ];
@@ -166,7 +161,7 @@ class LeaveController extends Controller
      */
     public function updateStatus(Request $request, string $id)
     {
-        $leave = DB::connection('pgsql')->table('leaves')->find($id);
+        $leave = LeaveRequest::find($id);
 
         if (!$leave) {
             return $this->errorResponse('Leave request not found', 'ERR_NOT_FOUND', 404);
@@ -185,12 +180,9 @@ class LeaveController extends Controller
             );
         }
 
-        DB::connection('pgsql')->table('leaves')
-            ->where('id', $id)
-            ->update([
-                'status'     => $request->status,
-                'updated_at' => now(),
-            ]);
+        $leave->update([
+            'status'     => $request->status,
+        ]);
 
         return $this->successResponse($leave, "Leave request {$request->status} successfully");
     }
