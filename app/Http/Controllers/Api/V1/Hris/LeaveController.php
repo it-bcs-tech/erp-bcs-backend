@@ -59,23 +59,23 @@ class LeaveController extends Controller
                     'endDate'      => $endDate->format('Y-m-d'),
                     'duration'     => $duration,
                     'reason'       => $leave->reason ?? $leave->notes ?? '-',
-                    'status'       => $leave->status ?? 'Pending',
+                    'status'       => $leave->status ?? 'pending',
                     'avatar'       => 'https://ui-avatars.com/api/?name=' . urlencode($employeeName),
                 ];
             });
 
             $now = Carbon::now();
             $metrics = [
-                'pendingApprovals'      => LeaveRequest::where('status', 'Pending')->count(),
-                'approvedThisMonth'     => LeaveRequest::where('status', 'Approved')
+                'pendingApprovals'      => LeaveRequest::where('status', 'pending')->count(),
+                'approvedThisMonth'     => LeaveRequest::where('status', 'approved')
                                               ->whereMonth('updated_at', $now->month)
                                               ->whereYear('updated_at', $now->year)
                                               ->count(),
-                'rejectedThisMonth'     => LeaveRequest::where('status', 'Rejected')
+                'rejectedThisMonth'     => LeaveRequest::where('status', 'rejected')
                                               ->whereMonth('updated_at', $now->month)
                                               ->whereYear('updated_at', $now->year)
                                               ->count(),
-                'employeesOnLeaveToday' => LeaveRequest::where('status', 'Approved')
+                'employeesOnLeaveToday' => LeaveRequest::where('status', 'approved')
                                               ->where('start_date', '<=', $now->toDateString())
                                               ->where('end_date', '>=', $now->toDateString())
                                               ->count(),
@@ -130,12 +130,12 @@ class LeaveController extends Controller
 
         try {
             $stats = [
-                'total_pending'        => LeaveRequest::where('status', 'Pending')->count(),
-                'total_approved_month' => LeaveRequest::where('status', 'Approved')
+                'total_pending'        => LeaveRequest::where('status', 'pending')->count(),
+                'total_approved_month' => LeaveRequest::where('status', 'approved')
                                              ->whereMonth('updated_at', $now->month)
                                              ->whereYear('updated_at', $now->year)
                                              ->count(),
-                'total_rejected_month' => LeaveRequest::where('status', 'Rejected')
+                'total_rejected_month' => LeaveRequest::where('status', 'rejected')
                                              ->whereMonth('updated_at', $now->month)
                                              ->whereYear('updated_at', $now->year)
                                              ->count(),
@@ -168,7 +168,7 @@ class LeaveController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'status' => 'required|in:Approved,Rejected',
+            'status' => 'required|in:approved,rejected',
             'notes'  => 'nullable|string',
         ]);
 
