@@ -44,7 +44,7 @@ class LeaveController extends Controller
                 $duration = $startDate->diffInDays($endDate) + 1;
 
                 // Try to get employee name from user relation or properties
-                $employeeName = $leave->employee_name ?? $leave->user_name ?? 'Employee';
+                $employeeName = $leave->employee_name ?? $leave->name ?? 'Employee';
 
                 // Try different column names for leave type
                 $leaveType = $leave->type ?? $leave->leave_type ?? $leave->category ?? 'Leave';
