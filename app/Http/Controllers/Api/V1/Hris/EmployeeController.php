@@ -46,7 +46,7 @@ class EmployeeController extends Controller
             });
         }
 
-        $employees = $query->orderBy('nama_karyawan')->limit(50)->get()->map(function ($emp) {
+        $employees = $query->orderBy('nama_karyawan')->get()->map(function ($emp) {
             $status = ($emp->aktif == 'Y') ? 'Active' : 'Inactive';
             
             return [
