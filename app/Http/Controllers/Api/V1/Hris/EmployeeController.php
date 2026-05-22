@@ -49,15 +49,32 @@ class EmployeeController extends Controller
         $employees = $query->orderBy('nama_karyawan')->get()->map(function ($emp) {
             $status = ($emp->aktif == 'Y') ? 'Active' : 'Inactive';
             
+            // Resolve SIM Information dynamically (B2 Umum > B1 > A)
+            $licenseType = '-';
+            $licenseExpiry = null;
+            if (!empty($emp->no_sim_b2_umum)) {
+                $licenseType = 'SIM B2 Umum';
+                $licenseExpiry = $emp->no_sim_b2_umum_expiredate;
+            } elseif (!empty($emp->no_sim_b1)) {
+                $licenseType = 'SIM B1';
+                $licenseExpiry = $emp->no_sim_b1_expiredate;
+            } elseif (!empty($emp->no_sim_a)) {
+                $licenseType = 'SIM A';
+                $licenseExpiry = $emp->no_sim_a_expiredate;
+            }
+            
             return [
-                'id'         => $emp->id ? 'EMP-' . str_pad($emp->id, 3, '0', STR_PAD_LEFT) : 'Unknown',
-                'name'       => $emp->nama_karyawan ?? $emp->nama ?? 'Unknown',
-                'role'       => $emp->job_title_name ?? $emp->jabatan ?? 'Staff',
-                'department' => $emp->departemen ?? 'General',
-                'email'      => $emp->email ?? strtolower(str_replace(' ', '.', $emp->nama_karyawan ?? 'user')) . '@bcslabs.tech',
-                'status'     => $status,
-                'joinDate'   => $emp->tgl_masuk ? \Carbon\Carbon::parse($emp->tgl_masuk)->format('Y-m-d') : '2020-01-15',
-                'avatar'     => $emp->foto ?? 'https://ui-avatars.com/api/?name=' . urlencode($emp->nama_karyawan ?? 'User')
+                'id'            => $emp->id ? 'EMP-' . str_pad($emp->id, 3, '0', STR_PAD_LEFT) : 'Unknown',
+                'name'          => $emp->nama_karyawan ?? $emp->nama ?? 'Unknown',
+                'role'          => $emp->job_title_name ?? $emp->jabatan ?? 'Staff',
+                'department'    => $emp->departemen ?? 'General',
+                'email'         => $emp->email ?? strtolower(str_replace(' ', '.', $emp->nama_karyawan ?? 'user')) . '@bcslabs.tech',
+                'phone'         => $emp->telp1 ?? $emp->telp2 ?? '-',
+                'licenseType'   => $licenseType,
+                'licenseExpiry' => $licenseExpiry,
+                'status'        => $status,
+                'joinDate'      => $emp->tgl_masuk ? \Carbon\Carbon::parse($emp->tgl_masuk)->format('Y-m-d') : '2020-01-15',
+                'avatar'        => $emp->foto ?? 'https://ui-avatars.com/api/?name=' . urlencode($emp->nama_karyawan ?? 'User')
             ];
         });
 
