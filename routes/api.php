@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Hris\LeaveController;
 use App\Http\Controllers\Api\V1\Hris\LifecycleController;
 use App\Http\Controllers\Api\V1\Hris\PerformanceController;
 use App\Http\Controllers\Api\V1\Hris\RecruitmentController;
+use App\Http\Controllers\Api\V1\Fms\DriverController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -66,4 +67,7 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
 
     // Performance
     Route::get('/hris/performance', [PerformanceController::class, 'index']);
+
+    // ── FMS Module ──────────────────────────────────────
+    Route::get('/fms/drivers', [DriverController::class, 'index']);
 });

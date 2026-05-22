@@ -21,7 +21,15 @@ class EmployeeController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Employee::query();
+        $query = Employee::query()
+            ->select('m_karyawan.*');
+
+        // Jika filter is_driver aktif, lakukan JOIN ke m_title dan cari yang mengandung DRIVER
+        if ($request->get('is_driver') === 'true' || $request->get('title') === 'DRIVER') {
+            $query->join('m_title', 'm_karyawan.title', '=', 'm_title.title_code')
+                  ->where('m_title.title', 'ILIKE', '%DRIVER%')
+                  ->addSelect('m_title.title as job_title_name');
+        }
 
         // Filter by status (aktif)
         if ($status = $request->get('status')) {
@@ -31,7 +39,11 @@ class EmployeeController extends Controller
 
         // Search by name
         if ($search = $request->get('search')) {
-            $query->where('nama_karyawan', 'like', "%{$search}%");
+            $query->where(function($q) use ($search) {
+                $q->where('nama_karyawan', 'ILIKE', "%{$search}%")
+                  ->orWhere('payroll_id', 'ILIKE', "%{$search}%")
+                  ->orWhere('telp1', 'ILIKE', "%{$search}%");
+            });
         }
 
         $employees = $query->orderBy('nama_karyawan')->limit(50)->get()->map(function ($emp) {
@@ -40,7 +52,7 @@ class EmployeeController extends Controller
             return [
                 'id'         => $emp->id ? 'EMP-' . str_pad($emp->id, 3, '0', STR_PAD_LEFT) : 'Unknown',
                 'name'       => $emp->nama_karyawan ?? $emp->nama ?? 'Unknown',
-                'role'       => $emp->jabatan ?? 'Staff',
+                'role'       => $emp->job_title_name ?? $emp->jabatan ?? 'Staff',
                 'department' => $emp->departemen ?? 'General',
                 'email'      => $emp->email ?? strtolower(str_replace(' ', '.', $emp->nama_karyawan ?? 'user')) . '@bcslabs.tech',
                 'status'     => $status,
