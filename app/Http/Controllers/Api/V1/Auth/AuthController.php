@@ -145,12 +145,16 @@ class AuthController extends Controller
             'allowedModules' => $allowedModules,
         ];
 
-        // 7. Generate Token (Catatan untuk Backend: Gunakan JWT atau Laravel Sanctum)
-        // $model = \App\Models\User::find($user->id);
-        // $token = $model->createToken('auth_token')->plainTextToken;
-        
-        // Mock token sementara
-        $token = "backend-generated-token-for-user-" . $user->id;
+        // 7. Generate JWT Token
+        $userModel = \App\Models\User::find($user->id);
+        if (!$userModel) {
+            return response()->json([
+                'status' => 'error',
+                'error' => 'User model not found',
+                'code' => 'USER_NOT_FOUND'
+            ], 404);
+        }
+        $token = \Illuminate\Support\Facades\Auth::guard('api')->login($userModel);
 
         return response()->json([
             'status' => 'success',

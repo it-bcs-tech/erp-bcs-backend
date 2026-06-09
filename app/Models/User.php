@@ -13,8 +13,8 @@ class User extends Authenticatable implements JWTSubject
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
-    protected $connection = 'pgsql_master';
-    protected $table = 'm_presensi';
+    protected $connection = 'pgsql';
+    protected $table = 'erp_users';
 
     /**
      * The attributes that are mass assignable.
