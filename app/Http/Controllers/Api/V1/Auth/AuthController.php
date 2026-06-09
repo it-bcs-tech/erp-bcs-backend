@@ -146,15 +146,26 @@ class AuthController extends Controller
         ];
 
         // 7. Generate JWT Token
-        $userModel = \App\Models\User::find($user->id);
-        if (!$userModel) {
+        try {
+            $userModel = \App\Models\User::find($user->id);
+            if (!$userModel) {
+                return response()->json([
+                    'status' => 'error',
+                    'error' => 'User model not found for ID: ' . $user->id,
+                    'code' => 'USER_NOT_FOUND'
+                ], 404);
+            }
+            $token = \Illuminate\Support\Facades\Auth::guard('api')->login($userModel);
+        } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'error' => 'User model not found',
-                'code' => 'USER_NOT_FOUND'
-            ], 404);
+                'error' => 'Server Auth Error: ' . $e->getMessage(),
+                'code' => 'SERVER_AUTH_ERROR',
+                'debug_trace' => $e->getTraceAsString(),
+                'debug_file' => $e->getFile(),
+                'debug_line' => $e->getLine()
+            ], 500);
         }
-        $token = \Illuminate\Support\Facades\Auth::guard('api')->login($userModel);
 
         return response()->json([
             'status' => 'success',
