@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Hris\AttendanceController;
 use App\Http\Controllers\Api\V1\Hris\DashboardController;
 use App\Http\Controllers\Api\V1\Hris\EmployeeController;
