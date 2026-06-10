@@ -53,12 +53,17 @@ class Presence extends Model
      */
     public function user()
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(PresensiUser::class, 'user_id');
+    }
+
+    public function employee()
+    {
+        return $this->belongsTo(Employee::class, 'user_id');
     }
 
     public function presensiUser()
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(PresensiUser::class, 'user_id');
     }
 
     // ── Helpers ─────────────────────────────────────────

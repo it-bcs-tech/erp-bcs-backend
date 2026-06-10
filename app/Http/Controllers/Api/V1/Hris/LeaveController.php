@@ -28,7 +28,7 @@ class LeaveController extends Controller
         $status = $request->get('status');
 
         try {
-            $query = LeaveRequest::with(['User', 'User.employee']);
+            $query = LeaveRequest::with('User');
 
             if ($status) {
                 $query->where('status', $status);
@@ -43,8 +43,9 @@ class LeaveController extends Controller
                 $endDate = Carbon::parse($leave->end_date ?? $leave->start_date ?? $leave->created_at);
                 $duration = $startDate->diffInDays($endDate) + 1;
 
-                // Use the User relation to get the employee name just like in AttendanceController
-                $userName = $leave->User ? $leave->User->name : 'Unknown';
+                // Use the User relation to get the employee name
+                $user = $leave->User;
+                $userName = $user ? $user->name : 'Unknown';
                 $employeeName = $userName;
 
                 // Try different column names for leave type
@@ -60,7 +61,7 @@ class LeaveController extends Controller
                     'duration'     => $duration,
                     'reason'       => $leave->reason ?? $leave->notes ?? '-',
                     'status'       => $leave->status ?? 'pending',
-                    'avatar'       => 'https://ui-avatars.com/api/?name=' . urlencode($employeeName),
+                    'avatar'       => $user && $user->photo ? $user->photo : 'https://ui-avatars.com/api/?name=' . urlencode($employeeName),
                 ];
             });
 

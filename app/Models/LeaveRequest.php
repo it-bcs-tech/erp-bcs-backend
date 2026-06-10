@@ -35,7 +35,12 @@ class LeaveRequest extends Model
 
     public function User()
     {
-        return $this->belongsTo(User::class, 'user_id', 'id');
+        return $this->belongsTo(PresensiUser::class, 'user_id', 'id');
+    }
+
+    public function employee()
+    {
+        return $this->belongsTo(Employee::class, 'user_id');
     }
 
     public function approver()

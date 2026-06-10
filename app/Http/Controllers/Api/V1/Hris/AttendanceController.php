@@ -23,7 +23,7 @@ class AttendanceController extends Controller
         $date = $request->get('date');
         $status = $request->get('status');
 
-        $query = Presence::with(['User:id,email,karyawan_id', 'User.employee:id,nama_karyawan']);
+        $query = Presence::with('user:id,name,email,photo');
 
         if ($date) {
             $query->whereDate('date', $date);
@@ -47,7 +47,7 @@ class AttendanceController extends Controller
                           ->limit($limit)
                           ->get()
                           ->map(function ($presence) {
-                              $user = $presence->User;
+                              $user = $presence->user;
                               $userName = $user ? $user->name : 'Unknown';
 
                               return [
@@ -65,7 +65,7 @@ class AttendanceController extends Controller
                                   'checkOutLocation' => ($presence->latitude_out && $presence->longitude_out)
                                       ? "{$presence->latitude_out}, {$presence->longitude_out}"
                                       : 'Kantor',
-                                  'avatar'           => 'https://ui-avatars.com/api/?name=' . urlencode($userName),
+                                  'avatar'           => $user && $user->photo ? $user->photo : 'https://ui-avatars.com/api/?name=' . urlencode($userName),
                               ];
                           });
 
