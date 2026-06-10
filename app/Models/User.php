@@ -74,14 +74,30 @@ class User extends Authenticatable implements JWTSubject
     }
 
     // ── Relationships ───────────────────────────────────
-
+ 
     public function employee()
     {
-        return $this->hasOne(Employee::class);
+        return $this->belongsTo(Employee::class, 'karyawan_id');
     }
-
+ 
      public function presences()
     {
         return $this->hasMany(Presence::class, 'user_id');
+    }
+
+    // ── Accessors ───────────────────────────────────────
+
+    public function getNameAttribute()
+    {
+        if ($this->relationLoaded('employee') && $this->employee) {
+            return $this->employee->nama_karyawan ?? $this->employee->name;
+        }
+
+        $employee = $this->employee;
+        if ($employee) {
+            return $employee->nama_karyawan ?? $employee->name;
+        }
+
+        return explode('@', $this->email)[0];
     }
 }

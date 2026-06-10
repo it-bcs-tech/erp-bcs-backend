@@ -23,7 +23,7 @@ class AttendanceController extends Controller
         $date = $request->get('date');
         $status = $request->get('status');
 
-        $query = Presence::with('User:id,name,email');
+        $query = Presence::with(['User:id,email,karyawan_id', 'User.employee:id,nama_karyawan']);
 
         if ($date) {
             $query->whereDate('date', $date);

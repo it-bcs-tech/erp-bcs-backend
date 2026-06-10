@@ -28,7 +28,7 @@ class LeaveController extends Controller
         $status = $request->get('status');
 
         try {
-            $query = LeaveRequest::with('User');
+            $query = LeaveRequest::with(['User', 'User.employee']);
 
             if ($status) {
                 $query->where('status', $status);

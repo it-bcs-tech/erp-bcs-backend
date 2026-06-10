@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use App\Traits\ApiResponseTrait;
 
 class AuthController extends Controller
 {
+    use ApiResponseTrait;
     /**
      * Konfigurasi RBAC (Sesuai dengan $lib/types/auth.ts)
      */
@@ -216,5 +218,48 @@ class AuthController extends Controller
         }
 
         return array_values($modules);
+    }
+
+    /**
+     * POST /api/v1/auth/logout
+     */
+    public function logout()
+    {
+        \Illuminate\Support\Facades\Auth::guard('api')->logout();
+        return $this->successResponse(null, 'Successfully logged out');
+    }
+
+    /**
+     * POST /api/v1/auth/refresh
+     */
+    public function refresh()
+    {
+        $token = \Illuminate\Support\Facades\Auth::guard('api')->refresh();
+        return $this->respondWithToken($token, 'Token refreshed successfully');
+    }
+
+    /**
+     * GET /api/v1/auth/me
+     */
+    public function me()
+    {
+        $user = \Illuminate\Support\Facades\Auth::guard('api')->user();
+        if ($user) {
+            $user->load('employee.department');
+        }
+        return $this->successResponse($user);
+    }
+
+    /**
+     * Build token response (for refresh).
+     */
+    protected function respondWithToken(string $token, string $message = 'Login successful')
+    {
+        return $this->successResponse([
+            'access_token' => $token,
+            'token_type'   => 'bearer',
+            'expires_in'   => \Illuminate\Support\Facades\Auth::guard('api')->factory()->getTTL() * 60,
+            'user'         => \Illuminate\Support\Facades\Auth::guard('api')->user(),
+        ], $message);
     }
 }
