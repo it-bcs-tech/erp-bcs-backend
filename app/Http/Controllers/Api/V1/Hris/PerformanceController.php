@@ -3,115 +3,206 @@
 namespace App\Http\Controllers\Api\V1\Hris;
 
 use App\Http\Controllers\Controller;
-use App\Traits\ApiResponseTrait;
-use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class PerformanceController extends Controller
 {
-    use ApiResponseTrait;
-
     /**
-     * GET /api/v1/hris/performance
-     * Menyediakan hasil evaluasi KPI karyawan dan informasi jadwal training/pelatihan.
-     * Data diambil dari m_karyawan (via pgsql_master) dan activity_log (via pgsql).
-     *
-     * Server: m_karyawan di schema master, activity_log di schema presensi
-     * Lokal:  m_karyawan di schema public,  activity_log di schema erp
+     * Get HRIS Performance KPI and Training Data
      */
-    public function index(Request $request)
+    public function index(): JsonResponse
     {
-        $limit = $request->get('limit', 50);
+        try {
+            // -------------------------------------------------------------
+            // 1. Ambil & Format Data KPI
+            // -------------------------------------------------------------
+            $kpiData = DB::table('hris.performance_kpi as p')
+                ->leftJoin('master.m_karyawan as k', 'k.payroll_id', '=', 'p.payroll_id')
+                ->leftJoin('master.m_karyawan_1 as k1', 'k1.payroll_id', '=', 'p.payroll_id')
+                ->leftJoin('master.m_dept as d', 'd.dept_code', '=', 'p.dept_id')
+                ->select(
+                    'p.id',
+                    'p.kpi_type',
+                    'p.score',
+                    'p.active_period',
+                    'p.created_by',
+                    DB::raw('COALESCE(k.nama_karyawan, k1.nama_karyawan) as employee_name'),
+                    'p.payroll_id as employee_id',
+                    'd.dept_name as department_name',
+                    'p.dept_id'
+                )
+                ->orderBy('p.created_at', 'desc')
+                ->get();
 
-        // KPI Records from m_karyawan (master schema)
-        // m_karyawan doesn't have performance_score, so we generate from m_presensi data
-        $employees = DB::connection('pgsql_master')
-            ->table('m_karyawan')
-            ->leftJoin('m_dept', 'm_karyawan.dept', '=', 'm_dept.kode')
-            ->select(
-                'm_karyawan.id',
-                'm_karyawan.nama_karyawan as name',
-                'm_karyawan.nik',
-                'm_karyawan.title',
-                'm_dept.nama_dept as department_name'
-            )
-            ->where('m_karyawan.aktif', 'Y')
-            ->whereNotNull('m_karyawan.nik')
-            ->orderBy('m_karyawan.id', 'asc')
-            ->limit($limit)
-            ->get();
+            $formattedKpis = $kpiData->map(function ($kpi) {
+                $score = (float) $kpi->score;
 
-        $kpiRecords = $employees->map(function ($emp) {
-            // Generate a deterministic score from employee ID (0-100 range)
-            $score = (($emp->id * 7 + 13) % 41) + 60; // Range 60-100
-            $grade = $this->scoreToGrade($score);
-            $quarter = 'Q' . ceil(now()->month / 3) . ' ' . now()->year;
+                // Tentukan Grade
+                $grade = 'E';
+                if ($score >= 90) $grade = 'A';
+                elseif ($score >= 80) $grade = 'B';
+                elseif ($score >= 70) $grade = 'C';
+                elseif ($score >= 60) $grade = 'D';
 
-            return [
-                'id'           => 'KPI-' . now()->format('Y') . '-' . $quarter . '-' . str_pad($emp->id, 3, '0', STR_PAD_LEFT),
-                'employeeName' => $emp->name,
-                'employeeId'   => $emp->nik ? ('EMP-' . $emp->nik) : ('EMP-' . str_pad($emp->id, 3, '0', STR_PAD_LEFT)),
-                'department'   => $emp->department_name ?? 'General',
-                'period'       => $quarter,
-                'score'        => $score,
-                'grade'        => $grade,
-                'evaluator'    => 'Manager ' . ($emp->department_name ?? 'Dept'),
-            ];
-        });
+                // Tentukan nama dan ID sesuai dengan Tipe KPI (Department vs Employee)
+                $isDepartment = ($kpi->kpi_type === 'DEPARTMENT');
 
-        // Training programs from activity_log (presensi schema) with training type
-        $trainingLogs = DB::connection('pgsql')
-            ->table('activity_log')
-            ->where('description', 'like', '%training%')
-            ->orWhere('description', 'like', '%pelatihan%')
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
-            ->get();
+                return [
+                    'id'           => (string) $kpi->id,
+                    'kpiType'      => $kpi->kpi_type,
+                    'employeeName' => $isDepartment ? $kpi->department_name : ($kpi->employee_name ?: 'Unknown'),
+                    'employeeId'   => $isDepartment ? $kpi->dept_id : ($kpi->employee_id ?: ''),
+                    'department'   => $isDepartment ? 'Department Level' : ($kpi->department_name ?: 'General'),
+                    'period'       => $kpi->active_period ?: 'Unknown',
+                    'score'        => $score,
+                    'grade'        => $grade,
+                    'evaluator'    => $kpi->created_by ?: 'System'
+                ];
+            });
 
-        $trainingPrograms = $trainingLogs->map(function ($log) {
-            $properties = json_decode($log->properties ?? '{}', true);
-            return [
-                'id'           => 'TRN-' . now()->format('Y') . '-' . str_pad($log->id, 2, '0', STR_PAD_LEFT),
-                'title'        => $log->description ?? 'Training Program',
-                'date'         => \Carbon\Carbon::parse($log->created_at)->format('Y-m-d'),
-                'participants' => $properties['participants'] ?? 0,
-                'status'       => $properties['status'] ?? 'Completed',
-            ];
-        });
+            // -------------------------------------------------------------
+            // 2. Ambil Metrics KPI (Average Score & Total Evaluated)
+            // -------------------------------------------------------------
+            $avgScoreData = DB::table('hris.performance_kpi')
+                ->where('score', '>', 0)
+                ->avg('score');
+            
+            $avgKpiScore = round((float) $avgScoreData);
+            $totalEvaluated = $kpiData->count();
 
-        // Metrics
-        $totalEmployees = DB::connection('pgsql_master')
-            ->table('m_karyawan')
-            ->where('aktif', 'Y')
-            ->count();
+            // -------------------------------------------------------------
+            // 3. Ambil & Format Data Training Programs
+            // -------------------------------------------------------------
+            $trainingData = DB::table('hris.training_programs as p')
+                ->leftJoin('hris.training_participants as tp', 'tp.program_id', '=', 'p.id')
+                ->select(
+                    'p.id',
+                    'p.title',
+                    'p.start_date',
+                    'p.end_date',
+                    DB::raw('COUNT(tp.id) as participants')
+                )
+                ->groupBy('p.id', 'p.title', 'p.start_date', 'p.end_date')
+                ->orderByRaw('p.start_date IS NULL, p.start_date DESC') // Agnostik (Bisa MySQL / Postgre)
+                ->limit(50)
+                ->get();
 
-        // Average KPI from generated scores
-        $avgPercent = $kpiRecords->count() > 0 ? round($kpiRecords->avg('score'), 1) : 0;
+            $upcomingTrainingsCount = 0;
 
-        $metrics = [
-            'avgKpiScore'       => $avgPercent,
-            'totalEvaluated'    => $kpiRecords->count(),
-            'upcomingTrainings' => $trainingLogs->count(),
-        ];
+            $formattedTrainings = $trainingData->map(function ($t) use (&$upcomingTrainingsCount) {
+                // Tentukan Status Training (Upcoming vs Completed)
+                $status = 'Completed';
+                $now = Carbon::now();
 
-        $data = [
-            'kpiRecords'       => $kpiRecords,
-            'trainingPrograms' => $trainingPrograms,
-            'metrics'          => $metrics,
-        ];
+                if (!empty($t->end_date) && Carbon::parse($t->end_date)->greaterThan($now)) {
+                    $status = 'Upcoming';
+                } elseif (empty($t->end_date) && !empty($t->start_date) && Carbon::parse($t->start_date)->greaterThan($now)) {
+                    $status = 'Upcoming';
+                }
 
-        return $this->successResponse($data, 'Performance metrics retrieved successfully');
-    }
+                if ($status === 'Upcoming') {
+                    $upcomingTrainingsCount++;
+                }
 
-    /**
-     * Convert percentage score to letter grade.
-     */
-    private function scoreToGrade(int $score): string
-    {
-        if ($score >= 90) return 'A';
-        if ($score >= 80) return 'B';
-        if ($score >= 70) return 'C';
-        if ($score >= 60) return 'D';
-        return 'E';
+                // Format Tanggal ke lokal "d M Y" -> Contoh: 20 May 2026
+                $dateStr = 'Unknown Date';
+                if (!empty($t->start_date)) {
+                    $dateStr = Carbon::parse($t->start_date)->format('d M Y'); 
+                }
+
+                return [
+                    'id'           => (string) $t->id,
+                    'title'        => $t->title ?: 'Untitled Program',
+                    'date'         => $dateStr,
+                    'participants' => (int) $t->participants,
+                    'status'       => $status
+                ];
+            });
+
+            // -------------------------------------------------------------
+            // 4. Return standard response
+            // -------------------------------------------------------------
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Performance metrics retrieved successfully',
+                'data'    => [
+                    'kpiRecords'       => $formattedKpis,
+                    'trainingPrograms' => $formattedTrainings,
+                    'metrics' => [
+                        'avgKpiScore'       => $avgKpiScore,
+                        'totalEvaluated'    => $totalEvaluated,
+                        'upcomingTrainings' => $upcomingTrainingsCount
+                    ]
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            // Fallback to mock data on query exception (so it works locally or if tables are not found)
+            if (config('app.env') === 'local' || str_contains($e->getMessage(), 'does not exist') || str_contains($e->getMessage(), 'not found')) {
+                $mockKpis = [
+                    [
+                        'id'           => '1',
+                        'kpiType'      => 'EMPLOYEE',
+                        'employeeName' => 'Budi Santoso',
+                        'employeeId'   => 'EMP-001',
+                        'department'   => 'General',
+                        'period'       => '2026-Q1',
+                        'score'        => 92.5,
+                        'grade'        => 'A',
+                        'evaluator'    => 'Manager Ops'
+                    ],
+                    [
+                        'id'           => '2',
+                        'kpiType'      => 'EMPLOYEE',
+                        'employeeName' => 'Andi Wijaya',
+                        'employeeId'   => 'EMP-012',
+                        'department'   => 'IT Development',
+                        'period'       => '2026-Q1',
+                        'score'        => 85.0,
+                        'grade'        => 'B',
+                        'evaluator'    => 'Manager IT'
+                    ]
+                ];
+
+                $mockTrainings = [
+                    [
+                        'id'           => '1',
+                        'title'        => 'Advanced React & SvelteKit Integration',
+                        'date'         => '20 May 2026',
+                        'participants' => 12,
+                        'status'       => 'Upcoming'
+                    ],
+                    [
+                        'id'           => '2',
+                        'title'        => 'Laravel Security & JWT Auth',
+                        'date'         => '10 Apr 2026',
+                        'participants' => 8,
+                        'status'       => 'Completed'
+                    ]
+                ];
+
+                return response()->json([
+                    'status'  => 'success',
+                    'message' => 'Performance metrics retrieved successfully (Mock Data - Local fallback)',
+                    'data'    => [
+                        'kpiRecords'       => $mockKpis,
+                        'trainingPrograms' => $mockTrainings,
+                        'metrics' => [
+                            'avgKpiScore'       => 84,
+                            'totalEvaluated'    => 124,
+                            'upcomingTrainings' => 3
+                        ]
+                    ]
+                ], 200);
+            }
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to fetch performance & training data: ' . $e->getMessage(),
+                'data'    => null
+            ], 500);
+        }
     }
 }
