@@ -23,27 +23,31 @@ class EmployeeController extends Controller
     public function index(Request $request)
     {
         $query = Employee::query()
-            ->select('m_karyawan.*');
+            ->leftJoin('m_title', 'm_karyawan.title', '=', 'm_title.title_code')
+            ->leftJoin('m_dept', 'm_karyawan.dept_id', '=', 'm_dept.dept_code')
+            ->select(
+                'm_karyawan.*',
+                'm_title.title as job_title_name',
+                'm_dept.dept_name as department_name'
+            );
 
-        // Jika filter is_driver aktif, lakukan JOIN ke m_title dan cari yang mengandung DRIVER
+        // Jika filter is_driver aktif, cari yang mengandung DRIVER
         if ($request->get('is_driver') === 'true' || $request->get('title') === 'DRIVER') {
-            $query->join('m_title', 'm_karyawan.title', '=', 'm_title.title_code')
-                  ->where('m_title.title', 'ILIKE', '%DRIVER%')
-                  ->addSelect('m_title.title as job_title_name');
+            $query->where('m_title.title', 'ILIKE', '%DRIVER%');
         }
 
         // Filter by status (aktif)
         if ($status = $request->get('status')) {
             $aktif = $status === 'Active' ? 'Y' : 'N';
-            $query->where('aktif', $aktif);
+            $query->where('m_karyawan.aktif', $aktif);
         }
 
         // Search by name
         if ($search = $request->get('search')) {
             $query->where(function($q) use ($search) {
-                $q->where('nama_karyawan', 'ILIKE', "%{$search}%")
-                  ->orWhere('payroll_id', 'ILIKE', "%{$search}%")
-                  ->orWhere('telp1', 'ILIKE', "%{$search}%");
+                $q->where('m_karyawan.nama_karyawan', 'ILIKE', "%{$search}%")
+                  ->orWhere('m_karyawan.payroll_id', 'ILIKE', "%{$search}%")
+                  ->orWhere('m_karyawan.telp1', 'ILIKE', "%{$search}%");
             });
         }
 
@@ -68,7 +72,7 @@ class EmployeeController extends Controller
                 'id'            => $emp->id ? 'EMP-' . str_pad($emp->id, 3, '0', STR_PAD_LEFT) : 'Unknown',
                 'name'          => $emp->nama_karyawan ?? $emp->nama ?? 'Unknown',
                 'role'          => $emp->job_title_name ?? $emp->jabatan ?? 'Staff',
-                'department'    => $emp->departemen ?? 'General',
+                'department'    => $emp->department_name ?? $emp->departemen ?? 'General',
                 'email'         => $emp->email ?? strtolower(str_replace(' ', '.', $emp->nama_karyawan ?? 'user')) . '@bcslabs.tech',
                 'phone'         => $emp->telp1 ?? $emp->telp2 ?? '-',
                 'licenseType'   => $licenseType,
@@ -228,6 +232,8 @@ class EmployeeController extends Controller
         // Build the formatted response with both camelCase and snake_case for maximum compatibility
         $data = [
             'id'            => 'EMP-' . str_pad($employee->id, 3, '0', STR_PAD_LEFT),
+            'dbId'          => (int) $employee->id,
+            'titleCode'     => $employee->title,
             'name'          => $employee->nama_karyawan ?? 'Unknown',
             'role'          => $jobTitle,
             'department'    => [
