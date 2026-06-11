@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\Hris\LifecycleController;
 use App\Http\Controllers\Api\V1\Hris\PerformanceController;
 use App\Http\Controllers\Api\V1\Hris\RecruitmentController;
 use App\Http\Controllers\Api\V1\Fms\DriverController;
+use App\Http\Controllers\Api\V1\Admin\AdminUserController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -70,4 +71,12 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
 
     // ── FMS Module ──────────────────────────────────────
     Route::get('/fms/drivers', [DriverController::class, 'index']);
+
+    // ── Admin Module ────────────────────────────────────
+    Route::prefix('admin')->group(function () {
+        Route::get('/users', [AdminUserController::class, 'index']);
+        Route::post('/users', [AdminUserController::class, 'store']);
+        Route::put('/users/{id}', [AdminUserController::class, 'update']);
+        Route::patch('/users/{id}/toggle-status', [AdminUserController::class, 'toggleStatus']);
+    });
 });
