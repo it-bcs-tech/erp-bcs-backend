@@ -168,6 +168,8 @@ class EmployeeController extends Controller
      */
     public function show(string $id)
     {
+        $id = str_replace('EMP-', '', $id);
+
         $employee = Employee::with([
             'department:id,name',
             'manager:id,name,role',
@@ -192,6 +194,8 @@ class EmployeeController extends Controller
      */
     public function update(Request $request, string $id)
     {
+        $id = str_replace('EMP-', '', $id);
+
         $employee = Employee::find($id);
 
         if (!$employee) {
