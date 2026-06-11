@@ -170,20 +170,86 @@ class EmployeeController extends Controller
     {
         $id = str_replace('EMP-', '', $id);
 
-        $employee = Employee::with([
-            'department:id,name',
-            'manager:id,name,role',
-            'subordinates:id,manager_id,name,role',
-        ])->find($id);
+        $employee = Employee::find($id);
 
         if (!$employee) {
             return $this->errorResponse('Employee not found', 'ERR_NOT_FOUND', 404);
         }
 
-        // Add computed fields
-        $data = $employee->toArray();
-        $data['leave_used']     = $employee->leaveRequests()->where('status', 'Approved')->count();
-        $data['leave_remaining'] = $employee->leave_balance - $data['leave_used'];
+        // Get job title from m_title table
+        $jobTitle = 'Staff';
+        if (!empty($employee->title)) {
+            $titleRecord = DB::connection('pgsql_master')
+                ->table('m_title')
+                ->where('title_code', $employee->title)
+                ->first();
+            if ($titleRecord) {
+                $jobTitle = $titleRecord->title;
+            } else {
+                $jobTitle = $employee->title;
+            }
+        }
+
+        // Get department from m_dept table
+        $departmentName = 'General';
+        if (!empty($employee->dept_id)) {
+            $deptRecord = DB::connection('pgsql_master')
+                ->table('m_dept')
+                ->where('dept_code', $employee->dept_id)
+                ->first();
+            if ($deptRecord) {
+                $departmentName = $deptRecord->dept_name;
+            }
+        }
+
+        // SIM License information (same logic as index)
+        $licenseType = '-';
+        $licenseExpiry = null;
+        if (!empty($employee->no_sim_b2_umum)) {
+            $licenseType = 'SIM B2 Umum';
+            $licenseExpiry = $employee->no_sim_b2_umum_expiredate;
+        } elseif (!empty($employee->no_sim_b1)) {
+            $licenseType = 'SIM B1';
+            $licenseExpiry = $employee->no_sim_b1_expiredate;
+        } elseif (!empty($employee->no_sim_a)) {
+            $licenseType = 'SIM A';
+            $licenseExpiry = $employee->no_sim_a_expiredate;
+        }
+
+        // Calculate leaves from LeaveRequest using user_id mapping
+        $leaveUsed = LeaveRequest::where('user_id', $employee->id)
+            ->where('status', 'Approved')
+            ->count();
+            
+        $leaveBalance = 12; // Default limit
+        $leaveRemaining = $leaveBalance - $leaveUsed;
+
+        // Build the formatted response with both camelCase and snake_case for maximum compatibility
+        $data = [
+            'id'            => 'EMP-' . str_pad($employee->id, 3, '0', STR_PAD_LEFT),
+            'name'          => $employee->nama_karyawan ?? 'Unknown',
+            'role'          => $jobTitle,
+            'department'    => [
+                'id'   => $employee->dept_id ?? '',
+                'name' => $departmentName
+            ],
+            'email'         => $employee->email ?? (strtolower(str_replace(' ', '.', $employee->nama_karyawan ?? 'user')) . '@bcslabs.tech'),
+            'phone'         => $employee->telp1 ?? $employee->telp2 ?? '-',
+            'status'        => ($employee->aktif == 'Y') ? 'Active' : 'Inactive',
+            'join_date'     => $employee->tgl_masuk ? \Carbon\Carbon::parse($employee->tgl_masuk)->format('Y-m-d') : '2020-01-15',
+            'joinDate'      => $employee->tgl_masuk ? \Carbon\Carbon::parse($employee->tgl_masuk)->format('Y-m-d') : '2020-01-15',
+            'birth_date'    => $employee->tgl_lahir ? \Carbon\Carbon::parse($employee->tgl_lahir)->format('Y-m-d') : null,
+            'birthDate'     => $employee->tgl_lahir ? \Carbon\Carbon::parse($employee->tgl_lahir)->format('Y-m-d') : null,
+            'address'       => $employee->alamat_ktp ?? $employee->alamat_ktp2 ?? '-',
+            'avatar'        => $employee->foto ?? ('https://ui-avatars.com/api/?name=' . urlencode($employee->nama_karyawan ?? 'User')),
+            'licenseType'   => $licenseType,
+            'licenseExpiry' => $licenseExpiry,
+            'leave_used'    => $leaveUsed,
+            'leave_balance' => $leaveBalance,
+            'leave_remaining' => $leaveRemaining,
+            'manager'       => null, // Not supported in m_karyawan table
+            'subordinates'  => [],   // Not supported in m_karyawan table
+        ];
 
         return $this->successResponse($data);
     }
@@ -204,17 +270,14 @@ class EmployeeController extends Controller
 
         $validator = Validator::make($request->all(), [
             'name'          => 'sometimes|string|max:255',
-            'email'         => 'sometimes|email|unique:employees,email,' . $id,
+            'email'         => 'sometimes|email|unique:pgsql_master.m_karyawan,email,' . $id,
             'phone'         => 'nullable|string|max:20',
-            'department_id' => 'nullable|exists:departments,id',
-            'manager_id'    => 'nullable|exists:employees,id',
+            'department_id' => 'nullable|exists:pgsql_master.m_dept,dept_code',
             'role'          => 'sometimes|string|max:255',
-            'status'        => 'nullable|in:Active,Inactive,On Leave,Probation',
+            'status'        => 'nullable|in:Active,Inactive',
             'join_date'     => 'sometimes|date',
             'birth_date'    => 'nullable|date',
             'address'       => 'nullable|string',
-            'leave_balance' => 'nullable|integer',
-            'performance_score' => 'nullable|numeric|min:0|max:5',
         ]);
 
         if ($validator->fails()) {
@@ -225,19 +288,50 @@ class EmployeeController extends Controller
             );
         }
 
-        $employee->update($request->only([
-            'name', 'email', 'phone', 'department_id', 'manager_id',
-            'role', 'status', 'join_date', 'birth_date', 'address',
-            'leave_balance', 'performance_score',
-        ]));
+        // Map input fields to m_karyawan table columns
+        $updateData = [];
 
-        // Sync user email if changed
-        if ($request->has('email') && $employee->user) {
-            $employee->user->update(['email' => $request->email]);
+        if ($request->has('name')) {
+            $updateData['nama_karyawan'] = $request->name;
+        }
+        if ($request->has('email')) {
+            $updateData['email'] = $request->email;
+        }
+        if ($request->has('phone')) {
+            $updateData['telp1'] = $request->phone;
+        }
+        if ($request->has('department_id')) {
+            $updateData['dept_id'] = $request->department_id;
+        }
+        if ($request->has('role')) {
+            $updateData['title'] = $request->role;
+            $updateData['jabatan'] = $request->role; // Keep both updated
+        }
+        if ($request->has('status')) {
+            $updateData['aktif'] = $request->status === 'Active' ? 'Y' : 'N';
+        }
+        if ($request->has('join_date')) {
+            $updateData['tgl_masuk'] = $request->join_date;
+        }
+        if ($request->has('birth_date')) {
+            $updateData['tgl_lahir'] = $request->birth_date;
+        }
+        if ($request->has('address')) {
+            $updateData['alamat_ktp'] = $request->address;
         }
 
-        $employee->load('department:id,name', 'manager:id,name');
+        if (!empty($updateData)) {
+            $employee->update($updateData);
+        }
 
-        return $this->successResponse($employee, 'Employee updated successfully');
+        // Sync user email if changed (using safe direct DB update since user relation has no user_id column in m_karyawan)
+        if ($request->has('email')) {
+            DB::table('erp_users')
+                ->where('karyawan_id', $employee->id)
+                ->update(['email' => $request->email]);
+        }
+
+        // Return the updated employee details using the same show logic format
+        return $this->show($id);
     }
 }
