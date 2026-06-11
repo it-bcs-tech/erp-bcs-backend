@@ -29,11 +29,11 @@ class AdminUserController extends Controller
                     'mk.payroll_id as nik',
                     'mk.nama_karyawan',
                     'ml.level as level_name',
-                    'md.div_name'
+                    'mt.title as title_name'
                 )
                 ->leftJoin('m_karyawan as mk', 'mk.id', '=', 'eu.karyawan_id')
                 ->leftJoin('m_level as ml', 'ml.level_code', '=', 'mk.level')
-                ->leftJoin('m_division as md', 'md.div_code', '=', 'mk.div_id')
+                ->leftJoin('m_title as mt', 'mt.title_code', '=', 'mk.title')
                 ->orderBy('eu.id', 'desc')
                 ->get();
 
