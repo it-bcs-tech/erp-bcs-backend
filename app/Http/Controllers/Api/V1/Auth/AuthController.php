@@ -40,14 +40,12 @@ class AuthController extends Controller
                 'ml.level as level_name',
                 'ml.level_sequence',
                 'mk.div_id',
-                'md.div_name',
                 'mt.title as title_name',
                 'mk.aktif as karyawan_aktif'
             )
             ->leftJoin('m_karyawan as mk', 'mk.id', '=', 'eu.karyawan_id')
             ->leftJoin('m_level as ml', 'ml.level_code', '=', 'mk.level')
             ->leftJoin('m_title as mt', 'mt.title_code', '=', 'mk.title')
-            ->leftJoin('m_division as md', 'md.div_code', '=', 'mk.div_id')
             ->whereRaw('LOWER(eu.email) = ?', [strtolower($email)])
             ->first();
 
@@ -115,7 +113,7 @@ class AuthController extends Controller
             'role' => $role,
             'level' => $user->level_name ?: 'Unknown',
             'levelSequence' => $levelSequence,
-            'division' => $user->div_name ?: 'Unknown',
+            'division' => $user->title_name ?: 'Unknown',
             'divisionCode' => $divisionCode,
             'allowedModules' => $allowedModules,
         ];
