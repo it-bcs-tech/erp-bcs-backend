@@ -63,17 +63,10 @@ class AdminUserController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        $validRoles = [
-            'superadmin', 'superhyperadmin', 'hr', 'manager', 'supervisor', 'user',
-            'kepala_mekanik', 'admin_maintenance', 'inspector', 'kepala_gudang', 'admin_warehouse',
-            'manager_fms', 'manager_maintenance', 'manager_pms', 'manager_finance',
-            'manager_marketing', 'manager_dms', 'manager_qhse'
-        ];
-
         $request->validate([
             'email'           => 'required|email',
             'password'        => 'required',
-            'role'            => 'required|in:' . implode(',', $validRoles),
+            'role'            => 'required|exists:pgsql_master.roles,name',
             'karyawan_id'     => 'nullable|integer',
             'allowed_modules' => 'nullable|string'
         ]);
@@ -104,7 +97,7 @@ class AdminUserController extends Controller
             }
 
             // Insert
-            DB::table('erp_users')->insert([
+            $userId = DB::table('erp_users')->insertGetId([
                 'karyawan_id'     => $karyawanId ?: null,
                 'email'           => $email,
                 'password'        => Hash::make($password),
@@ -113,6 +106,12 @@ class AdminUserController extends Controller
                 'created_at'      => now(),
                 'updated_at'      => now()
             ]);
+
+            // Sync role to Spatie tables
+            $userModel = \App\Models\User::find($userId);
+            if ($userModel) {
+                $userModel->syncRoles($role);
+            }
 
             return response()->json([
                 'status'  => 'success',
@@ -132,15 +131,8 @@ class AdminUserController extends Controller
      */
     public function update(Request $request, $id): JsonResponse
     {
-        $validRoles = [
-            'superadmin', 'superhyperadmin', 'hr', 'manager', 'supervisor', 'user',
-            'kepala_mekanik', 'admin_maintenance', 'inspector', 'kepala_gudang', 'admin_warehouse',
-            'manager_fms', 'manager_maintenance', 'manager_pms', 'manager_finance',
-            'manager_marketing', 'manager_dms', 'manager_qhse'
-        ];
-
         $request->validate([
-            'role'            => 'required|in:' . implode(',', $validRoles),
+            'role'            => 'required|exists:pgsql_master.roles,name',
             'allowed_modules' => 'nullable|string',
             'reset_password'  => 'nullable|string'
         ]);
@@ -170,6 +162,12 @@ class AdminUserController extends Controller
             DB::table('erp_users')
                 ->where('id', $id)
                 ->update($updateData);
+
+            // Sync role to Spatie tables
+            $userModel = \App\Models\User::find($id);
+            if ($userModel) {
+                $userModel->syncRoles($role);
+            }
 
             return response()->json([
                 'status'  => 'success',

@@ -123,22 +123,18 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // 4. Resolve module access
-        $role = $user->erp_role ?: 'user';
-        $levelSequence = (int) ($user->level_sequence ?: 0);
-        $divisionCode = $user->div_id ?: '';
-
-        // Decode JSONB allowed_modules
-        $customModules = [];
-        if (!empty($user->allowed_modules)) {
-            // Karena ini string dari DB (JSONB), kita decode menjadi array
-            $decoded = json_decode($user->allowed_modules, true);
-            if (is_array($decoded)) {
-                $customModules = $decoded;
-            }
+        // 4. Cari user model untuk mengambil permission secara dinamis
+        $userModel = \App\Models\User::find($user->id);
+        if (!$userModel) {
+            return response()->json([
+                'status' => 'error',
+                'error' => 'User model not found for ID: ' . $user->id,
+                'code' => 'USER_NOT_FOUND'
+            ], 404);
         }
 
-        $allowedModules = $this->resolveModuleAccess($role, $levelSequence, $divisionCode, $customModules);
+        // Ambil hak akses modul secara dinamis menggunakan Spatie
+        $allowedModules = $userModel->getAllPermissions()->pluck('name')->toArray();
 
         // 5. Update last_login_at
         DB::table('erp_users')
@@ -146,6 +142,10 @@ class AuthController extends Controller
             ->update(['last_login_at' => now()]);
 
         // 6. Build Data User yang Akan Dikembalikan
+        $role = $user->erp_role ?: 'user';
+        $levelSequence = (int) ($user->level_sequence ?: 0);
+        $divisionCode = $user->div_id ?: '';
+
         $authUser = [
             'id' => (int) $user->id,
             'name' => $user->nama_karyawan ?: explode('@', $user->email)[0],
@@ -160,14 +160,6 @@ class AuthController extends Controller
 
         // 7. Generate JWT Token
         try {
-            $userModel = \App\Models\User::find($user->id);
-            if (!$userModel) {
-                return response()->json([
-                    'status' => 'error',
-                    'error' => 'User model not found for ID: ' . $user->id,
-                    'code' => 'USER_NOT_FOUND'
-                ], 404);
-            }
             $token = \Illuminate\Support\Facades\Auth::guard('api')->login($userModel);
         } catch (\Exception $e) {
             return response()->json([

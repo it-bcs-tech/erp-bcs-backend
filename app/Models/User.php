@@ -7,11 +7,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements JWTSubject
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasRoles;
 
     protected $connection = 'pgsql';
     protected $table = 'erp_users';
@@ -32,6 +33,8 @@ class User extends Authenticatable implements JWTSubject
         'device_token',
         'is_active',
         'role',
+        'erp_role',
+        'allowed_modules',
         'employment_type',
         'office_location_id',
         'pin',
@@ -70,7 +73,9 @@ class User extends Authenticatable implements JWTSubject
 
     public function getJWTCustomClaims(): array
     {
-        return [];
+        return [
+            'allowed_modules' => $this->getAllPermissions()->pluck('name')->toArray(),
+        ];
     }
 
     // ── Relationships ───────────────────────────────────
