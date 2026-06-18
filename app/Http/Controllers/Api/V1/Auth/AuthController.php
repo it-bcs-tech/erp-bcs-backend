@@ -41,10 +41,12 @@ class AuthController extends Controller
                 'ml.level_sequence',
                 'mk.div_id',
                 'md.div_name',
+                'mt.title as title_name',
                 'mk.aktif as karyawan_aktif'
             )
             ->leftJoin('m_karyawan as mk', 'mk.id', '=', 'eu.karyawan_id')
             ->leftJoin('m_level as ml', 'ml.level_code', '=', 'mk.level')
+            ->leftJoin('m_title as mt', 'mt.title_code', '=', 'mk.title')
             ->leftJoin('m_division as md', 'md.div_code', '=', 'mk.div_id')
             ->whereRaw('LOWER(eu.email) = ?', [strtolower($email)])
             ->first();
