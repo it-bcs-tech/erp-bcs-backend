@@ -23,7 +23,18 @@ class AuthController extends Controller
         'hr' => ['hris'],
         'manager' => ['ocs'],
         'supervisor' => ['ocs'],
-        // Sesuaikan dengan data terbaru di frontend (jika ada)
+        'kepala_mekanik' => ['fms'],
+        'admin_maintenance' => ['fms'],
+        'inspector' => ['fms'],
+        'kepala_gudang' => ['dms'],
+        'admin_warehouse' => ['dms'],
+        'manager_fms' => ['fms'],
+        'manager_maintenance' => ['fms'],
+        'manager_pms' => ['pms'],
+        'manager_finance' => ['finance'],
+        'manager_marketing' => ['marketing'],
+        'manager_dms' => ['dms'],
+        'manager_qhse' => ['qhse'],
     ];
 
     // Map default modul berdasarkan divisi

@@ -63,10 +63,17 @@ class AdminUserController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $validRoles = [
+            'superadmin', 'superhyperadmin', 'hr', 'manager', 'supervisor', 'user',
+            'kepala_mekanik', 'admin_maintenance', 'inspector', 'kepala_gudang', 'admin_warehouse',
+            'manager_fms', 'manager_maintenance', 'manager_pms', 'manager_finance',
+            'manager_marketing', 'manager_dms', 'manager_qhse'
+        ];
+
         $request->validate([
             'email'           => 'required|email',
             'password'        => 'required',
-            'role'            => 'required',
+            'role'            => 'required|in:' . implode(',', $validRoles),
             'karyawan_id'     => 'nullable|integer',
             'allowed_modules' => 'nullable|string'
         ]);
@@ -125,8 +132,15 @@ class AdminUserController extends Controller
      */
     public function update(Request $request, $id): JsonResponse
     {
+        $validRoles = [
+            'superadmin', 'superhyperadmin', 'hr', 'manager', 'supervisor', 'user',
+            'kepala_mekanik', 'admin_maintenance', 'inspector', 'kepala_gudang', 'admin_warehouse',
+            'manager_fms', 'manager_maintenance', 'manager_pms', 'manager_finance',
+            'manager_marketing', 'manager_dms', 'manager_qhse'
+        ];
+
         $request->validate([
-            'role'            => 'required',
+            'role'            => 'required|in:' . implode(',', $validRoles),
             'allowed_modules' => 'nullable|string',
             'reset_password'  => 'nullable|string'
         ]);
