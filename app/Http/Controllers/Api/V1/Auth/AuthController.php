@@ -11,46 +11,6 @@ use App\Traits\ApiResponseTrait;
 class AuthController extends Controller
 {
     use ApiResponseTrait;
-    /**
-     * Konfigurasi RBAC (Sesuai dengan $lib/types/auth.ts)
-     */
-    private const ALL_MODULES = ['fms', 'ocs', 'hris', 'marketing', 'pms', 'kasir', 'finance', 'dms', 'qhse'];
-    private const OCS_MIN_LEVEL_SEQUENCE = 4;
-    private const ADMIN_ROLES = ['superadmin', 'superhyperadmin'];
-
-    // Map default modul berdasarkan role
-    private const ROLE_MODULE_MAP = [
-        'hr' => ['hris'],
-        'manager' => ['ocs'],
-        'supervisor' => ['ocs'],
-        'kepala_mekanik' => ['fms'],
-        'admin_maintenance' => ['fms'],
-        'inspector' => ['fms'],
-        'kepala_gudang' => ['dms'],
-        'admin_warehouse' => ['dms'],
-        'manager_fms' => ['fms'],
-        'manager_maintenance' => ['fms'],
-        'manager_pms' => ['pms'],
-        'manager_finance' => ['finance'],
-        'manager_marketing' => ['marketing'],
-        'manager_dms' => ['dms'],
-        'manager_qhse' => ['qhse'],
-    ];
-
-    // Map default modul berdasarkan divisi
-    private const DIVISION_MODULE_MAP = [
-        'DV_41' => ['fms', 'kasir'],
-        'DV_37' => ['hris'],
-        'DV_36' => ['finance'],
-        'DV_43' => ['marketing', 'pms'],
-        'DV_28' => self::ALL_MODULES,
-        'DV_44' => self::ALL_MODULES,
-        'DV_18' => ['fms'],
-        'DV_35' => ['fms', 'ocs', 'kasir', 'marketing'],
-        'DV_06' => self::ALL_MODULES,
-        'DV_07' => self::ALL_MODULES,
-        'DV_25' => ['fms', 'kasir'],
-    ];
 
     /**
      * Endpoint API Login
@@ -180,47 +140,6 @@ class AuthController extends Controller
                 'token' => $token
             ]
         ], 200);
-    }
-
-    /**
-     * Helper Method: Resolve Modul yang bisa diakses user
-     */
-    private function resolveModuleAccess(string $role, int $levelSequence, string $divisionCode, array $customModules): array
-    {
-        // 1. Jika ada custom override bintang (all access)
-        if (in_array('*', $customModules) || in_array($role, self::ADMIN_ROLES)) {
-            return self::ALL_MODULES;
-        }
-
-        $modules = [];
-
-        // 2. Terapkan custom modules jika tidak kosong
-        if (count($customModules) > 0) {
-            foreach ($customModules as $m) {
-                if (in_array($m, self::ALL_MODULES)) {
-                    $modules[] = $m;
-                }
-            }
-        } else {
-            // 3. Fallback ke Role Spesifik
-            if (array_key_exists($role, self::ROLE_MODULE_MAP)) {
-                $modules = self::ROLE_MODULE_MAP[$role];
-            } else {
-                // 4. Fallback ke Divisi jika role biasa
-                if (array_key_exists($divisionCode, self::DIVISION_MODULE_MAP)) {
-                    $modules = self::DIVISION_MODULE_MAP[$divisionCode];
-                }
-            }
-        }
-
-        $modules = array_unique($modules);
-
-        // 5. Khusus OCS: cek level minimum (Supervisor = sequence 4)
-        if (in_array('ocs', $modules) && $levelSequence < self::OCS_MIN_LEVEL_SEQUENCE) {
-            $modules = array_values(array_filter($modules, fn($m) => $m !== 'ocs'));
-        }
-
-        return array_values($modules);
     }
 
     /**
