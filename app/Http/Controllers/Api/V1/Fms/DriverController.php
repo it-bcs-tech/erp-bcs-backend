@@ -24,7 +24,7 @@ class DriverController extends Controller
         $perPage = min(max($perPage, 1), 100); // clamp 1–100
 
         // ── Build query with karyawan join ──────────────
-        $query = Driver::query()
+        $query = Driver::on('pgsql')
             ->select([
                 'm_drivers.id',
                 'm_drivers.karyawan_id',
@@ -42,7 +42,7 @@ class DriverController extends Controller
                     ELSE m_drivers.status 
                 END as status"),
                 DB::raw("(
-                    SELECT u.nomor_unit 
+                    SELECT u.nomor_polisi 
                     FROM fleet.unit_driver_assignment as uda
                     JOIN fleet.unit as u ON u.id = uda.unit_id
                     WHERE uda.driver_id = m_drivers.id 
@@ -169,7 +169,7 @@ class DriverController extends Controller
      */
     private function getMetrics(): array
     {
-        $counts = Driver::whereNull('m_drivers.deleted_at')
+        $counts = Driver::on('pgsql')->whereNull('m_drivers.deleted_at')
             ->selectRaw("
                 COUNT(*) as total,
                 SUM(CASE WHEN EXISTS (
