@@ -42,7 +42,7 @@ class DriverController extends Controller
                     ELSE m_drivers.status 
                 END as status"),
                 DB::raw("(
-                    SELECT u.nomor_polisi 
+                    SELECT u.nomor_unit 
                     FROM fleet.unit_driver_assignment as uda
                     JOIN fleet.unit as u ON u.id = uda.unit_id
                     WHERE uda.driver_id = m_drivers.id 
