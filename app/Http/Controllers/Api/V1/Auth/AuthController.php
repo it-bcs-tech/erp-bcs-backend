@@ -93,8 +93,17 @@ class AuthController extends Controller
             ], 404);
         }
 
-        // Ambil hak akses modul secara dinamis menggunakan Spatie
-        $allowedModules = $userModel->getAllPermissions()->pluck('name')->toArray();
+        // 1. Ambil hak akses modul default berdasarkan Role menggunakan Spatie
+        $roleModules = $userModel->getPermissionsViaRoles()->pluck('name')->toArray();
+
+        // 2. Ambil hak akses modul custom (ekstra) dari kolom JSONB erp_users
+        $customModules = json_decode($user->allowed_modules ?? '[]', true);
+        if (!is_array($customModules)) {
+            $customModules = [];
+        }
+
+        // 3. Gabungkan keduanya dan hilangkan duplikat
+        $allowedModules = array_values(array_unique(array_merge($roleModules, $customModules)));
 
         // 5. Update last_login_at
         DB::table('erp_users')

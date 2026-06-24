@@ -91,10 +91,11 @@ class AdminUserController extends Controller
             }
 
             // Validasi string JSON untuk allowed_modules
-            $allowedModules = '[]';
-            if (json_decode($customModulesStr) !== null) {
-                $allowedModules = $customModulesStr;
+            $decodedModules = json_decode($customModulesStr, true);
+            if (!is_array($decodedModules)) {
+                $decodedModules = [];
             }
+            $allowedModules = json_encode($decodedModules);
 
             // Insert
             $userId = DB::table('erp_users')->insertGetId([
@@ -143,10 +144,11 @@ class AdminUserController extends Controller
             $resetPassword = $request->input('reset_password');
 
             // Validasi string JSON
-            $allowedModules = '[]';
-            if (json_decode($customModulesStr) !== null) {
-                $allowedModules = $customModulesStr;
+            $decodedModules = json_decode($customModulesStr, true);
+            if (!is_array($decodedModules)) {
+                $decodedModules = [];
             }
+            $allowedModules = json_encode($decodedModules);
 
             $updateData = [
                 'erp_role'        => $role,
