@@ -4,11 +4,122 @@ namespace App\Http\Controllers\Api\V1\Hris;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class PerformanceController extends Controller
 {
+    /**
+     * POST /api/v1/hris/performance/kpi
+     * Add new KPI record.
+     */
+    public function storeKpi(Request $request): JsonResponse
+    {
+        $request->validate([
+            'kpiType'      => 'required|string|in:PERSONAL,DEPARTMENT',
+            'targetId'     => 'required|string',
+            'activePeriod' => 'required|string',
+            'score'        => 'required|numeric',
+        ]);
+
+        try {
+            $kpiType = $request->input('kpiType');
+            $targetId = $request->input('targetId');
+            $activePeriod = $request->input('activePeriod');
+            $score = $request->input('score');
+            $remarks = $request->input('remarks');
+
+            $payrollId = null;
+            $deptId = null;
+
+            if ($kpiType === 'PERSONAL') {
+                $payrollId = $targetId;
+                if (str_starts_with($targetId, 'EMP-')) {
+                    $dbId = (int) str_replace('EMP-', '', $targetId);
+                    $emp = DB::table('master.m_karyawan')->where('id', $dbId)->first();
+                    if ($emp) {
+                        $payrollId = $emp->payroll_id;
+                    }
+                }
+            } else {
+                $deptId = $targetId;
+            }
+
+            DB::table('hris.performance_kpi')->insert([
+                'document_no'   => 'KPI-' . date('YmdHis'),
+                'kpi_type'      => $kpiType,
+                'payroll_id'    => $payrollId ?: '',
+                'dept_id'       => $deptId,
+                'active_period' => $activePeriod,
+                'score'         => $score,
+                'remarks'       => $remarks,
+                'created_by'    => 'System',
+                'created_at'    => now(),
+                'updated_at'    => now()
+            ]);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'KPI berhasil ditambahkan'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to store KPI: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * POST /api/v1/hris/performance/training
+     * Add new training program.
+     */
+    public function storeTraining(Request $request): JsonResponse
+    {
+        $request->validate([
+            'title'     => 'required|string',
+            'category'  => 'required|string',
+            'startDate' => 'required|date',
+            'endDate'   => 'required|date',
+            'trainer'   => 'required|string',
+        ]);
+
+        try {
+            $title = $request->input('title');
+            $category = $request->input('category');
+            $startDate = $request->input('startDate');
+            $endDate = $request->input('endDate');
+            $trainer = $request->input('trainer');
+
+            // Generate TRN-[timestamp] or similar string
+            $trainingId = 'TRN-' . time();
+
+            DB::table('hris.training_programs')->insert([
+                'id'         => $trainingId,
+                'title'      => $title,
+                'category'   => $category,
+                'start_date' => $startDate,
+                'end_date'   => $endDate,
+                'trainer'    => $trainer,
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Program pelatihan berhasil dibuat'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to store training program: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     /**
      * Get HRIS Performance KPI and Training Data
      */

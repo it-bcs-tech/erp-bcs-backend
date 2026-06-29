@@ -65,9 +65,12 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
 
     // Lifecycle
     Route::get('/hris/lifecycle', [LifecycleController::class, 'index']);
+    Route::post('/hris/lifecycle', [LifecycleController::class, 'store']);
 
     // Performance
     Route::get('/hris/performance', [PerformanceController::class, 'index']);
+    Route::post('/hris/performance/kpi', [PerformanceController::class, 'storeKpi']);
+    Route::post('/hris/performance/training', [PerformanceController::class, 'storeTraining']);
 
     // ── FMS Module ──────────────────────────────────────
     Route::get('/fms/drivers', [DriverController::class, 'index']);

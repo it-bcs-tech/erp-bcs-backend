@@ -229,6 +229,69 @@ class EmployeeController extends Controller
         $leaveBalance = 12; // Default limit
         $leaveRemaining = $leaveBalance - $leaveUsed;
 
+        // 1. Performance Average from hris.performance_kpi
+        $perfAvg = DB::connection('pgsql')->table('hris.performance_kpi')
+            ->where('payroll_id', $employee->payroll_id)
+            ->where('kpi_type', 'PERSONAL')
+            ->avg('score');
+        $performanceVal = $perfAvg !== null ? (string) round($perfAvg, 1) : "0.0";
+
+        // 2. Leave Balance from presensi.leave_balances
+        $leaveBalanceVal = 12; // Default
+        $erpUser = DB::connection('pgsql')->table('erp_users')->where('karyawan_id', $employee->id)->first();
+        if ($erpUser) {
+            $lb = DB::connection('pgsql_presensi')->table('leave_balances')
+                ->where('user_id', $erpUser->id)
+                ->first();
+            if ($lb) {
+                $leaveBalanceVal = max(0, $lb->quota - $lb->used);
+            }
+        }
+
+        // 3. Manager name from master.m_atasan
+        $managerName = 'Unknown';
+        if (!empty($employee->atasan)) {
+            $atasan = DB::connection('pgsql_master')->table('m_atasan')
+                ->where('code', $employee->atasan)
+                ->first();
+            if ($atasan) {
+                $managerName = $atasan->name;
+            }
+        }
+
+        // 4. Skills from hris.training_programs
+        $skills = DB::connection('pgsql')->table('hris.training_participants as tp')
+            ->join('hris.training_programs as t', 't.id', '=', 'tp.program_id')
+            ->where('tp.payroll_id', $employee->payroll_id)
+            ->whereNotNull('t.category')
+            ->distinct()
+            ->pluck('t.category')
+            ->toArray();
+
+        // 5. Timeline from hris.employee_lifecycle
+        $timeline = DB::connection('pgsql')->table('hris.employee_lifecycle')
+            ->where('payroll_id', $employee->payroll_id)
+            ->orderBy('start_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->limit(5)
+            ->get()
+            ->map(function ($t) {
+                $type = $t->action_type;
+                if (strcasecmp($type, 'MUTASI') === 0 || strcasecmp($type, 'MUTATION') === 0) {
+                    $type = 'Mutation';
+                } elseif (strcasecmp($type, 'PROMOSI') === 0 || strcasecmp($type, 'PROMOTION') === 0) {
+                    $type = 'Promotion';
+                } elseif (strcasecmp($type, 'DEMOSI') === 0 || strcasecmp($type, 'DEMOTION') === 0) {
+                    $type = 'Demotion';
+                }
+                return [
+                    'type' => $type,
+                    'desc' => $t->action_description ?? '',
+                    'date' => $t->start_date ? \Carbon\Carbon::parse($t->start_date)->format('Y-m-d') : '',
+                ];
+            })
+            ->toArray();
+
         // Build the formatted response with both camelCase and snake_case for maximum compatibility
         $data = [
             'id'            => 'EMP-' . str_pad($employee->id, 3, '0', STR_PAD_LEFT),
@@ -236,10 +299,7 @@ class EmployeeController extends Controller
             'titleCode'     => $employee->title,
             'name'          => $employee->nama_karyawan ?? 'Unknown',
             'role'          => $jobTitle,
-            'department'    => [
-                'id'   => $employee->dept_id ?? '',
-                'name' => $departmentName
-            ],
+            'department'    => $departmentName,
             'email'         => $employee->email ?? (strtolower(str_replace(' ', '.', $employee->nama_karyawan ?? 'user')) . '@bcslabs.tech'),
             'phone'         => $employee->telp1 ?? $employee->telp2 ?? '-',
             'status'        => ($employee->aktif == 'Y') ? 'Active' : 'Inactive',
@@ -254,7 +314,14 @@ class EmployeeController extends Controller
             'leave_used'    => $leaveUsed,
             'leave_balance' => $leaveBalance,
             'leave_remaining' => $leaveRemaining,
-            'manager'       => null, // Not supported in m_karyawan table
+            
+            // New Issue #10 fields:
+            'performance'   => $performanceVal,
+            'leaveBalance'  => (int) $leaveBalanceVal,
+            'manager'       => $managerName,
+            'skills'        => $skills,
+            'timeline'      => $timeline,
+            
             'subordinates'  => [],   // Not supported in m_karyawan table
         ];
 

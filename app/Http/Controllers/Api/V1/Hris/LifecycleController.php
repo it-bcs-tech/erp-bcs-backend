@@ -4,10 +4,102 @@ namespace App\Http\Controllers\Api\V1\Hris;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class LifecycleController extends Controller
 {
+    /**
+     * POST /api/v1/hris/lifecycle
+     * Store new lifecycle action.
+     */
+    public function store(Request $request): JsonResponse
+    {
+        $request->validate([
+            'actionType' => 'required|string',
+            'employeeId' => 'required|string',
+        ]);
+
+        try {
+            $actionType = $request->input('actionType');
+            $employeeId = $request->input('employeeId');
+
+            // Resolve payroll_id from employeeId
+            $payrollId = $employeeId;
+            if (str_starts_with($employeeId, 'EMP-')) {
+                $dbId = (int) str_replace('EMP-', '', $employeeId);
+                $emp = DB::table('master.m_karyawan')->where('id', $dbId)->first();
+                if ($emp) {
+                    $payrollId = $emp->payroll_id;
+                }
+            }
+
+            if (in_array($actionType, ['Mutation', 'Promotion', 'Demotion'])) {
+                $newDept = $request->input('newDept');
+                $newTitle = $request->input('newTitle');
+                $newLoc = $request->input('newLoc');
+                $reason = $request->input('reason');
+                $effectiveDate = $request->input('effectiveDate') ?: date('Y-m-d');
+
+                DB::table('hris.employee_lifecycle')->insert([
+                    'document_no'        => 'MUT-' . time(),
+                    'payroll_id'         => $payrollId,
+                    'action_type'        => strtoupper($actionType),
+                    'dept_to'            => $newDept,
+                    'title_to'           => $newTitle,
+                    'loc_to'             => $newLoc,
+                    'start_date'         => $effectiveDate,
+                    'action_description' => $reason,
+                    'status'             => 'P',
+                    'created_at'         => now(),
+                    'updated_at'         => now(),
+                ]);
+            } elseif ($actionType === 'Warning') {
+                $warningLevel = $request->input('warningLevel');
+                $reason = $request->input('reason');
+
+                DB::table('hris.employee_warnings')->insert([
+                    'document_no' => 'WRN-' . time(),
+                    'payroll_id'  => $payrollId,
+                    'action_type' => $warningLevel,
+                    'remarks'     => $reason,
+                    'status'      => 'A',
+                    'created_at'  => now(),
+                    'updated_at'  => now(),
+                ]);
+            } elseif ($actionType === 'Termination') {
+                $termType = $request->input('termType');
+                $reason = $request->input('reason');
+
+                DB::table('hris.employee_terminations')->insert([
+                    'document_no'      => 'TRM-' . time(),
+                    'payroll_id'       => $payrollId,
+                    'termination_type' => $termType,
+                    'reason_out'       => $reason,
+                    'status'           => 'P',
+                    'created_at'       => now(),
+                    'updated_at'       => now(),
+                ]);
+            } else {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Invalid actionType: ' . $actionType
+                ], 400);
+            }
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Aksi berhasil disimpan'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to store lifecycle action: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     /**
      * Get HRIS Lifecycle data (Mutations, Warnings, Terminations)
      */
@@ -33,8 +125,9 @@ class LifecycleController extends Controller
                     'id',
                     'document_no',
                     DB::raw("CASE 
-                        WHEN action_type = 'MUTASI' THEN 'Mutation' 
-                        WHEN action_type = 'PROMOSI' THEN 'Promotion' 
+                        WHEN action_type = 'MUTASI' OR action_type = 'MUTATION' THEN 'Mutation' 
+                        WHEN action_type = 'PROMOSI' OR action_type = 'PROMOTION' THEN 'Promotion' 
+                        WHEN action_type = 'DEMOSI' OR action_type = 'DEMOTION' THEN 'Demotion'
                         ELSE action_type 
                     END as action_type"),
                     'action_description',
