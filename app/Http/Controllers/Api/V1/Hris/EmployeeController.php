@@ -236,12 +236,13 @@ class EmployeeController extends Controller
             ->avg('score');
         $performanceVal = $perfAvg !== null ? (string) round($perfAvg, 1) : "0.0";
 
-        // 2. Leave Balance from presensi.leave_balances
+        // 2. Leave Balance from presensi.leave_balances (filtered by current year)
         $leaveBalanceVal = 12; // Default
         $erpUser = DB::connection('pgsql')->table('erp_users')->where('karyawan_id', $employee->id)->first();
         if ($erpUser) {
             $lb = DB::connection('pgsql_presensi')->table('leave_balances')
                 ->where('user_id', $erpUser->id)
+                ->where('year', date('Y'))
                 ->first();
             if ($lb) {
                 $leaveBalanceVal = max(0, $lb->quota - $lb->used);
