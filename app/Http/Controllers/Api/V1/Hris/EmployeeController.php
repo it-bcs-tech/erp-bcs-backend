@@ -248,14 +248,17 @@ class EmployeeController extends Controller
             }
         }
 
-        // 3. Manager name from master.m_atasan
-        $managerName = 'Unknown';
-        if (!empty($employee->atasan)) {
-            $atasan = DB::connection('pgsql_master')->table('m_atasan')
-                ->where('code', $employee->atasan)
+        // 3. Manager name from master.m_atasan (title-based hierarchy)
+        $managerName = 'No Manager Assigned';
+        if (!empty($employee->title)) {
+            $atasan = DB::connection('pgsql_master')->table('m_atasan as a')
+                ->join('m_karyawan as k', 'a.title_atasan', '=', 'k.title')
+                ->where('a.title_bawahan', $employee->title)
+                ->where('k.aktif', 'Y')
+                ->select('k.nama_karyawan')
                 ->first();
             if ($atasan) {
-                $managerName = $atasan->name;
+                $managerName = $atasan->nama_karyawan;
             }
         }
 
