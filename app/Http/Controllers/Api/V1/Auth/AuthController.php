@@ -49,20 +49,12 @@ class AuthController extends Controller
             ->whereRaw('LOWER(eu.email) = ?', [strtolower($email)])
             ->first();
 
-        // 2. Validasi Keberadaan Email & Password
-        if (!$user) {
+        // 2. Validasi Keberadaan Email & Password (Generic response to prevent user enumeration)
+        if (!$user || !Hash::check($password, $user->password)) {
             return response()->json([
                 'status' => 'error',
-                'error' => 'Email tidak terdaftar sebagai pengguna sistem ERP',
-                'code' => 'EMAIL_NOT_FOUND'
-            ], 401);
-        }
-
-        if (!Hash::check($password, $user->password)) {
-            return response()->json([
-                'status' => 'error',
-                'error' => 'Password yang Anda masukkan salah',
-                'code' => 'INVALID_PASSWORD'
+                'error' => 'Email atau password salah',
+                'code' => 'INVALID_CREDENTIALS'
             ], 401);
         }
 
@@ -131,14 +123,19 @@ class AuthController extends Controller
         try {
             $token = \Illuminate\Support\Facades\Auth::guard('api')->login($userModel);
         } catch (\Exception $e) {
-            return response()->json([
+            $payload = [
                 'status' => 'error',
                 'error' => 'Server Auth Error: ' . $e->getMessage(),
                 'code' => 'SERVER_AUTH_ERROR',
-                'debug_trace' => $e->getTraceAsString(),
-                'debug_file' => $e->getFile(),
-                'debug_line' => $e->getLine()
-            ], 500);
+            ];
+
+            if (config('app.debug')) {
+                $payload['debug_trace'] = $e->getTraceAsString();
+                $payload['debug_file'] = $e->getFile();
+                $payload['debug_line'] = $e->getLine();
+            }
+
+            return response()->json($payload, 500);
         }
 
         return response()->json([

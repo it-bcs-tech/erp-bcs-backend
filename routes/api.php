@@ -76,7 +76,7 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::get('/fms/drivers', [DriverController::class, 'index']);
 
     // ── Admin Module ────────────────────────────────────
-    Route::prefix('admin')->group(function () {
+    Route::prefix('admin')->middleware('role:superadmin|administrator')->group(function () {
         Route::get('/users', [AdminUserController::class, 'index']);
         Route::post('/users', [AdminUserController::class, 'store']);
         Route::put('/users/{id}', [AdminUserController::class, 'update']);
