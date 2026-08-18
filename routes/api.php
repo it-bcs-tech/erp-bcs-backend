@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\Hris\EmployeeController;
 use App\Http\Controllers\Api\V1\Hris\LeaveController;
 use App\Http\Controllers\Api\V1\Hris\LifecycleController;
 use App\Http\Controllers\Api\V1\Hris\PerformanceController;
+use App\Http\Controllers\Api\V1\Hris\PayrollController;
 use App\Http\Controllers\Api\V1\Hris\RecruitmentController;
 use App\Http\Controllers\Api\V1\Fms\DriverController;
 use App\Http\Controllers\Api\V1\Admin\AdminUserController;
@@ -71,6 +72,14 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::get('/hris/performance', [PerformanceController::class, 'index']);
     Route::post('/hris/performance/kpi', [PerformanceController::class, 'storeKpi']);
     Route::post('/hris/performance/training', [PerformanceController::class, 'storeTraining']);
+
+    // Payroll & Reimbursements
+    Route::get('/hris/payroll', [PayrollController::class, 'index']);
+    Route::put('/hris/payroll/slips/{id}', [PayrollController::class, 'updateSlip']);
+    Route::get('/hris/payroll/reimbursements', [PayrollController::class, 'reimbursements']);
+    Route::post('/hris/payroll/reimbursements', [PayrollController::class, 'storeReimbursement']);
+    Route::post('/hris/payroll/reimbursements/{id}/approve', [PayrollController::class, 'approveReimbursement']);
+    Route::post('/hris/payroll/reimbursements/{id}/reject', [PayrollController::class, 'rejectReimbursement']);
 
     // ── FMS Module ──────────────────────────────────────
     Route::get('/fms/drivers', [DriverController::class, 'index']);
