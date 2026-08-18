@@ -54,6 +54,12 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     // Attendance
     Route::get('/hris/attendance', [AttendanceController::class, 'index']);
     Route::get('/hris/attendance/stats', [AttendanceController::class, 'stats']);
+    Route::get('/hris/attendance/overtimes', [AttendanceController::class, 'overtimes']);
+    Route::post('/hris/attendance/overtimes', [AttendanceController::class, 'storeOvertime']);
+    Route::post('/hris/attendance/overtimes/{id}/approve', [AttendanceController::class, 'approveOvertime']);
+    Route::post('/hris/attendance/overtimes/{id}/reject', [AttendanceController::class, 'rejectOvertime']);
+    Route::get('/hris/attendance/roster', [AttendanceController::class, 'roster']);
+    Route::put('/hris/attendance/roster/{employeeId}', [AttendanceController::class, 'updateRoster']);
 
     // Leave Requests
     Route::get('/hris/leaves', [LeaveController::class, 'index']);
