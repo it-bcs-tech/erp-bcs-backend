@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Hris\LeaveController;
 use App\Http\Controllers\Api\V1\Hris\LifecycleController;
 use App\Http\Controllers\Api\V1\Hris\PerformanceController;
 use App\Http\Controllers\Api\V1\Hris\PayrollController;
+use App\Http\Controllers\Api\V1\Hris\LoanController;
 use App\Http\Controllers\Api\V1\Hris\RecruitmentController;
 use App\Http\Controllers\Api\V1\Fms\DriverController;
 use App\Http\Controllers\Api\V1\Admin\AdminUserController;
@@ -86,6 +87,12 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::post('/hris/payroll/reimbursements', [PayrollController::class, 'storeReimbursement']);
     Route::post('/hris/payroll/reimbursements/{id}/approve', [PayrollController::class, 'approveReimbursement']);
     Route::post('/hris/payroll/reimbursements/{id}/reject', [PayrollController::class, 'rejectReimbursement']);
+
+    // Loans & Kasbon
+    Route::get('/hris/payroll/loans', [LoanController::class, 'index']);
+    Route::post('/hris/payroll/loans', [LoanController::class, 'store']);
+    Route::post('/hris/payroll/loans/{id}/approve', [LoanController::class, 'approve']);
+    Route::post('/hris/payroll/loans/{id}/reject', [LoanController::class, 'reject']);
 
     // ── FMS Module ──────────────────────────────────────
     Route::get('/fms/drivers', [DriverController::class, 'index']);
