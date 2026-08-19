@@ -21,13 +21,22 @@ class PayrollController extends Controller
      */
     public function index(Request $request)
     {
-        $period   = $request->query('period', date('Y-m'));
+        $periodParam = $request->query('period', date('Y-m'));
+        if (strlen($periodParam) === 7) {
+            $period = $periodParam . '-01';
+        } else {
+            $period = $periodParam;
+        }
         $search   = $request->query('search');
         $division = $request->query('division');
         $perPage  = (int) $request->query('per_page', 20);
 
         // Subquery summary per periode
-        $summaryQuery = SalarySlip::where('period', $period);
+        $summaryQuery = SalarySlip::where(function ($q) use ($period, $periodParam) {
+            $q->where('period', $period)
+              ->orWhere('period', $periodParam)
+              ->orWhere('period', 'LIKE', "{$periodParam}%");
+        });
         $totalCount      = (int) $summaryQuery->count();
         $totalGross      = (float) $summaryQuery->sum('gross_salary');
         $totalDeductions = (float) $summaryQuery->sum('total_deductions');
@@ -43,8 +52,12 @@ class PayrollController extends Controller
         // Main Query
         $query = SalarySlip::query();
 
-        if ($period) {
-            $query->where('period', $period);
+        if ($periodParam) {
+            $query->where(function ($q) use ($period, $periodParam) {
+                $q->where('period', $period)
+                  ->orWhere('period', $periodParam)
+                  ->orWhere('period', 'LIKE', "{$periodParam}%");
+            });
         }
 
         if ($division) {
