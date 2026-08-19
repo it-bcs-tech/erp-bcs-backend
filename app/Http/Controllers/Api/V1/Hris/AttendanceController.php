@@ -22,9 +22,10 @@ class AttendanceController extends Controller
      */
     public function index(Request $request)
     {
-        $limit = $request->get('limit', 10);
-        $date = $request->get('date');
-        $status = $request->get('status');
+        $perPage = (int) $request->get('limit', $request->get('per_page', 50));
+        $date    = $request->get('date');
+        $status  = $request->get('status');
+        $search  = $request->get('search');
 
         $query = Presence::with('user:id,name,email,photo');
 
@@ -45,32 +46,42 @@ class AttendanceController extends Controller
             }
         }
 
-        $logsData = $query->orderBy('date', 'desc')
-                          ->orderBy('clock_in', 'desc')
-                          ->limit($limit)
-                          ->get()
-                          ->map(function ($presence) {
-                              $user = $presence->user;
-                              $userName = $user ? $user->name : 'Unknown';
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('user', function ($uQuery) use ($search) {
+                    $uQuery->where('name', 'LIKE', "%{$search}%")
+                           ->orWhere('email', 'LIKE', "%{$search}%");
+                })
+                ->orWhere('user_id', 'LIKE', "%{$search}%");
+            });
+        }
 
-                              return [
-                                  'id'               => 'ATT-' . str_pad($presence->id, 4, '0', STR_PAD_LEFT),
-                                  'employeeName'     => $userName,
-                                  'employeeId'       => $presence->user_id ? 'EMP-' . str_pad($presence->user_id, 3, '0', STR_PAD_LEFT) : 'Unknown',
-                                  'department'       => 'General',
-                                  'date'             => $presence->date->format('Y-m-d'),
-                                  'checkIn'          => $presence->clock_in ? Carbon::parse($presence->clock_in)->format('h:i A') : null,
-                                  'checkOut'         => $presence->clock_out ? Carbon::parse($presence->clock_out)->format('h:i A') : null,
-                                  'status'           => $presence->normalized_status,
-                                  'checkInLocation'  => ($presence->latitude_in && $presence->longitude_in)
-                                      ? "{$presence->latitude_in}, {$presence->longitude_in}"
-                                      : 'Kantor',
-                                  'checkOutLocation' => ($presence->latitude_out && $presence->longitude_out)
-                                      ? "{$presence->latitude_out}, {$presence->longitude_out}"
-                                      : 'Kantor',
-                                  'avatar'           => $user && $user->photo ? $user->photo : 'https://ui-avatars.com/api/?name=' . urlencode($userName),
-                              ];
-                          });
+        $paginated = $query->orderBy('date', 'desc')
+                           ->orderBy('clock_in', 'desc')
+                           ->paginate($perPage);
+
+        $logsData = collect($paginated->items())->map(function ($presence) {
+            $user = $presence->user;
+            $userName = $user ? $user->name : 'Unknown';
+
+            return [
+                'id'               => 'ATT-' . str_pad($presence->id, 4, '0', STR_PAD_LEFT),
+                'employeeName'     => $userName,
+                'employeeId'       => $presence->user_id ? 'EMP-' . str_pad($presence->user_id, 3, '0', STR_PAD_LEFT) : 'Unknown',
+                'department'       => 'General',
+                'date'             => $presence->date->format('Y-m-d'),
+                'checkIn'          => $presence->clock_in ? Carbon::parse($presence->clock_in)->format('h:i A') : null,
+                'checkOut'         => $presence->clock_out ? Carbon::parse($presence->clock_out)->format('h:i A') : null,
+                'status'           => $presence->normalized_status,
+                'checkInLocation'  => ($presence->latitude_in && $presence->longitude_in)
+                    ? "{$presence->latitude_in}, {$presence->longitude_in}"
+                    : 'Kantor',
+                'checkOutLocation' => ($presence->latitude_out && $presence->longitude_out)
+                    ? "{$presence->latitude_out}, {$presence->longitude_out}"
+                    : 'Kantor',
+                'avatar'           => $user && $user->photo ? $user->photo : 'https://ui-avatars.com/api/?name=' . urlencode($userName),
+            ];
+        });
 
         // Metrics from real presensi data
         $today = Carbon::today()->toDateString();
@@ -88,17 +99,24 @@ class AttendanceController extends Controller
                                     ->count('user_id');
         $absentToday = $totalEmployees - $totalLoggedToday;
 
-        $data = [
-            'logs'    => $logsData,
-            'metrics' => [
-                'totalEmployees' => $totalEmployees,
-                'presentToday'   => $presentToday,
-                'lateToday'      => $lateToday,
-                'absentToday'    => max(0, $absentToday),
-            ]
-        ];
-
-        return $this->successResponse($data, 'Attendance retrieved successfully');
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Attendance retrieved successfully',
+            'data'    => [
+                'logs'    => $logsData,
+                'metrics' => [
+                    'totalEmployees' => $totalEmployees,
+                    'presentToday'   => $presentToday,
+                    'lateToday'      => $lateToday,
+                    'absentToday'    => max(0, $absentToday),
+                ]
+            ],
+            'meta'    => [
+                'current_page' => $paginated->currentPage(),
+                'per_page'     => $paginated->perPage(),
+                'total'        => $paginated->total(),
+            ],
+        ], 200);
     }
 
     /**
