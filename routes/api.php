@@ -66,6 +66,10 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     // Leave Requests
     Route::get('/hris/leaves', [LeaveController::class, 'index']);
     Route::get('/hris/leaves/stats', [LeaveController::class, 'stats']);
+    Route::post('/hris/leaves', [LeaveController::class, 'store']);
+    Route::post('/hris/leaves/{id}/approve', [LeaveController::class, 'approve']);
+    Route::post('/hris/leaves/{id}/reject', [LeaveController::class, 'reject']);
+    Route::get('/hris/leaves/balances/{id}', [LeaveController::class, 'balance']);
     Route::put('/hris/leaves/{id}/status', [LeaveController::class, 'updateStatus']);
 
     // Recruitment
