@@ -40,6 +40,7 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
 
     // Dashboard
     Route::prefix('hris/dashboard')->group(function () {
+        Route::get('/overview', [DashboardController::class, 'overview']);
         Route::get('/metrics', [DashboardController::class, 'metrics']);
         Route::get('/attendance-trend', [DashboardController::class, 'attendanceTrend']);
         Route::get('/anniversaries', [DashboardController::class, 'anniversaries']);
