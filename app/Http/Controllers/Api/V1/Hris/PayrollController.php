@@ -383,9 +383,17 @@ class PayrollController extends Controller
         // Fetch active employees from master.m_karyawan or Employee model
         try {
             $employees = DB::table('master.m_karyawan as k')
+                ->leftJoin('master.m_title as t', 't.title_code', '=', 'k.title')
                 ->leftJoin('master.m_division as dv', 'dv.div_code', '=', 'k.div_id')
                 ->whereRaw("(k.aktif = 'Y' OR k.aktif = '1' OR k.aktif IS NULL)")
-                ->select('k.id', 'k.nama_karyawan as name', 'k.nik', 'k.title as position', 'dv.div_name as division', 'k.gaji_pokok')
+                ->select(
+                    'k.id',
+                    'k.nama_karyawan as name',
+                    'k.nik',
+                    DB::raw("COALESCE(t.title, k.title, 'Staff') as position"),
+                    'dv.div_name as division',
+                    'k.gaji_pokok'
+                )
                 ->get();
         } catch (\Exception $e) {
             $employees = collect();
@@ -398,7 +406,7 @@ class PayrollController extends Controller
                         'id'         => $e->id,
                         'name'       => $e->nama_karyawan ?? $e->nama,
                         'nik'        => $e->nik ?? ('EMP-' . str_pad($e->id, 3, '0', STR_PAD_LEFT)),
-                        'position'   => $e->title ?? 'Staff',
+                        'position'   => (isset($e->titleRelation) && $e->titleRelation ? $e->titleRelation->title : ($e->title ?? 'Staff')),
                         'division'   => 'Operations',
                         'gaji_pokok' => $e->gaji_pokok ?? 4500000,
                     ];
