@@ -88,6 +88,7 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     // Payroll & Reimbursements
     Route::get('/hris/payroll', [PayrollController::class, 'index']);
     Route::post('/hris/payroll/calculate', [PayrollController::class, 'calculate']);
+    Route::post('/hris/payroll/commit', [PayrollController::class, 'commit']);
     Route::put('/hris/payroll/slips/{id}', [PayrollController::class, 'updateSlip']);
     Route::get('/hris/payroll/reimbursements', [PayrollController::class, 'reimbursements']);
     Route::post('/hris/payroll/reimbursements', [PayrollController::class, 'storeReimbursement']);

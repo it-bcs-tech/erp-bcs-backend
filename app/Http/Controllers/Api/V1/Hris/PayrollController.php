@@ -421,6 +421,8 @@ class PayrollController extends Controller
         $totalBpjs             = 0;
         $totalTax              = 0;
 
+        $items = [];
+
         foreach ($employees as $emp) {
             $empId = $emp->id;
 
@@ -434,18 +436,23 @@ class PayrollController extends Controller
             }
 
             // Tunjangan Default
-            $profAllowance   = 750000;
-            $perfAllowance   = 500000;
-            $posAllowance    = 600000;
-            $mealAllowance   = 350000;
-            $transAllowance  = 300000;
+            $profAllowance   = 0;
+            $perfAllowance   = 0;
+            $posAllowance    = 500000;
+            $mealAllowance   = 300000;
+            $transAllowance  = 200000;
+            $relocAllowance  = 0;
+            $skillAllowance  = 0;
+            $otherAllowance  = 0;
+            $shiftAllowance  = 150000;
+            $shiftCount      = 10;
 
             // Overtime SPKL (Jam Lembur x 1/173 x Gaji Pokok x 1.5)
-            $otHours  = 2.0;
+            $otHours  = 18;
             $otHourly = round((1 / 173) * $basicSalary * 1.5, 2);
             $otAmount = round($otHours * $otHourly, 2);
 
-            $grossSalary = $basicSalary + $profAllowance + $perfAllowance + $posAllowance + $mealAllowance + $transAllowance + $otAmount;
+            $grossSalary = $basicSalary + $profAllowance + $perfAllowance + $posAllowance + $mealAllowance + $transAllowance + $shiftAllowance + $otAmount;
 
             // Absence Deduction (Hari Alpa x Gaji Pokok / 25)
             $absenceDays      = 0;
@@ -470,8 +477,9 @@ class PayrollController extends Controller
 
             // PPh 21 TER (Pajak Efektif 2.5%)
             $taxAmount = round($grossSalary * 0.025, 2);
+            $unionFee  = 10000;
 
-            $sumDeductions = $bpjsTotal + $taxAmount + $loanDeduction + $absenceDeduction;
+            $sumDeductions = $bpjsTotal + $taxAmount + $loanDeduction + $absenceDeduction + $unionFee;
             $netSalary     = max(0, round($grossSalary - $sumDeductions, 2));
 
             // Aggregations
@@ -486,6 +494,47 @@ class PayrollController extends Controller
             $totalLoanDeduction    += $loanDeduction;
             $totalBpjs             += $bpjsTotal;
             $totalTax              += $taxAmount;
+
+            $items[] = [
+                'user_id'                 => $empId,
+                'employee_nik'            => $emp->nik ?? ('EMP-' . str_pad($empId, 3, '0', STR_PAD_LEFT)),
+                'employee_name'           => $emp->name ?? 'Staff',
+                'employee_position'       => $emp->position ?? 'Staff',
+                'employee_division'       => $emp->division ?? 'Operations',
+                'bank_name'               => 'BCA',
+                'account_number'          => '1234567890',
+                'work_days'               => 24,
+                'basic_salary'            => $basicSalary,
+                'professional_allowance'  => $profAllowance,
+                'performance_allowance'   => $perfAllowance,
+                'position_allowance'      => $posAllowance,
+                'meal_allowance'          => $mealAllowance,
+                'transport_allowance'     => $transAllowance,
+                'relocation_allowance'   => $relocAllowance,
+                'skill_allowance'        => $skillAllowance,
+                'other_allowance'        => $otherAllowance,
+                'incentive_10th'          => 0,
+                'communication_allowance' => 0,
+                'incentive'               => 0,
+                'shift_allowance'         => $shiftAllowance,
+                'shift_count'             => $shiftCount,
+                'overtime_allowance'      => $otAmount,
+                'overtime_hours'          => $otHours,
+                'khk_allowance'           => 0,
+                'khk_count'               => 0,
+                'zakat'                   => 0,
+                'tax'                     => $taxAmount,
+                'bpjs'                    => $bpjsTotal,
+                'union_fee'               => $unionFee,
+                'absence_deduction'       => $absenceDeduction,
+                'absence_days'            => $absenceDays,
+                'cooperative'             => 0,
+                'bpr_installment'         => 0,
+                'other_deduction'         => 0,
+                'gross_salary'            => $grossSalary,
+                'total_deductions'        => $sumDeductions,
+                'net_salary'              => $netSalary,
+            ];
 
             if ($commit) {
                 SalarySlip::updateOrCreate(
@@ -519,30 +568,56 @@ class PayrollController extends Controller
             }
         }
 
-        $avgNet = $totalEmployees > 0 ? round($totalNet / $totalEmployees, 2) : 0;
-
         return response()->json([
-            'status'  => 'success',
-            'message' => "Kalkulasi payroll periode {$period} berhasil digenerate untuk {$totalEmployees} karyawan.",
-            'data'    => [
-                'summary' => [
-                    'period'                  => $period,
-                    'total_employees'         => $totalEmployees,
-                    'total_gross'             => round($totalGross, 2),
-                    'total_deductions'        => round($totalDeductions, 2),
-                    'total_net'               => round($totalNet, 2),
-                    'avg_net'                 => $avgNet,
-                    'total_overtime_hours'    => round($totalOvertimeHours, 1),
-                    'total_overtime_amount'   => round($totalOvertimeAmount, 2),
-                    'total_absence_days'      => $totalAbsenceDays,
-                    'total_absence_deduction' => round($totalAbsenceDeduction, 2),
-                    'total_loan_deduction'    => round($totalLoanDeduction, 2),
-                    'total_bpjs'              => round($totalBpjs, 2),
-                    'total_tax'               => round($totalTax, 2),
-                ],
-                'items_count' => $totalEmployees,
-                'committed'   => $commit,
+            'status' => 'success',
+            'data'   => [
+                'period'                  => $period,
+                'total_employees'         => $totalEmployees,
+                'total_gross'             => round($totalGross, 2),
+                'total_deductions'        => round($totalDeductions, 2),
+                'total_net'               => round($totalNet, 2),
+                'total_overtime_hours'    => round($totalOvertimeHours, 1),
+                'total_overtime_amount'   => round($totalOvertimeAmount, 2),
+                'total_absence_days'      => $totalAbsenceDays,
+                'total_absence_deduction' => round($totalAbsenceDeduction, 2),
+                'total_loan_deduction'    => round($totalLoanDeduction, 2),
+                'total_bpjs'              => round($totalBpjs, 2),
+                'total_tax'               => round($totalTax, 2),
+                'items'                   => $items,
             ],
         ], 200);
+    }
+
+    /**
+     * POST /api/v1/hris/payroll/commit
+     * Eksekusi & Kunci Slip Gaji ke database
+     */
+    public function commit(Request $request)
+    {
+        $validated = $request->validate([
+            'period' => 'required|string',
+            'mode'   => 'nullable|string|in:all,new_only',
+        ]);
+
+        // Force commit to true
+        $request->merge(['commit' => true]);
+        $response = $this->calculate($request);
+        $resData = $response->getData(true);
+
+        if (($resData['status'] ?? '') === 'success') {
+            $dataObj = $resData['data'] ?? [];
+            $periodFormatted = Carbon::parse($validated['period'])->format('Y-m');
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => "Payroll periode {$periodFormatted} berhasil dihitung dan dikunci ke database.",
+                'data'    => [
+                    'slips_generated' => $dataObj['total_employees'] ?? 0,
+                    'total_amount'    => $dataObj['total_net'] ?? 0,
+                ],
+            ], 200);
+        }
+
+        return $response;
     }
 }
