@@ -392,7 +392,7 @@ class PayrollController extends Controller
                     DB::raw("COALESCE(k.payroll_id, CONCAT('EMP-', LPAD(k.id::text, 3, '0'))) as nik"),
                     DB::raw("COALESCE(t.title, k.title, 'Staff') as position"),
                     DB::raw("COALESCE(dv.div_name, 'Operations') as division"),
-                    DB::raw("COALESCE(k.gaji_pokok, 4500000) as gaji_pokok")
+                    DB::raw("4500000 as gaji_pokok")
                 )
                 ->get();
         } catch (\Exception $e) {
@@ -401,14 +401,15 @@ class PayrollController extends Controller
 
         if ($employees->isEmpty()) {
             try {
-                $employees = Employee::where('aktif', 'Y')->get()->map(function ($e) {
+                $titleMap = DB::table('master.m_title')->pluck('title', 'title_code')->toArray();
+                $employees = Employee::where('aktif', 'Y')->get()->map(function ($e) use ($titleMap) {
                     return (object)[
                         'id'         => $e->id,
                         'name'       => $e->nama_karyawan ?? $e->nama,
-                        'nik'        => $e->nik ?? ('EMP-' . str_pad($e->id, 3, '0', STR_PAD_LEFT)),
-                        'position'   => (isset($e->titleRelation) && $e->titleRelation ? $e->titleRelation->title : ($e->title ?? 'Staff')),
+                        'nik'        => $e->payroll_id ?? $e->nik ?? ('EMP-' . str_pad($e->id, 3, '0', STR_PAD_LEFT)),
+                        'position'   => $titleMap[$e->title] ?? $e->title ?? 'Staff',
                         'division'   => 'Operations',
-                        'gaji_pokok' => $e->gaji_pokok ?? 4500000,
+                        'gaji_pokok' => 4500000,
                     ];
                 });
             } catch (\Exception $e) {
