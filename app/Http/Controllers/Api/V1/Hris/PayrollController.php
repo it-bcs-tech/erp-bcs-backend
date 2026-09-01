@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Hris;
 
 use App\Http\Controllers\Controller;
+use App\Models\Employee;
 use App\Models\SalarySlip;
 use App\Models\Reimbursement;
 use App\Models\PresensiUser;
