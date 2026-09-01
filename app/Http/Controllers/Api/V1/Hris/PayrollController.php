@@ -389,10 +389,10 @@ class PayrollController extends Controller
                 ->select(
                     'k.id',
                     'k.nama_karyawan as name',
-                    'k.nik',
+                    DB::raw("COALESCE(k.payroll_id, CONCAT('EMP-', LPAD(k.id::text, 3, '0'))) as nik"),
                     DB::raw("COALESCE(t.title, k.title, 'Staff') as position"),
-                    'dv.div_name as division',
-                    'k.gaji_pokok'
+                    DB::raw("COALESCE(dv.div_name, 'Operations') as division"),
+                    DB::raw("COALESCE(k.gaji_pokok, 4500000) as gaji_pokok")
                 )
                 ->get();
         } catch (\Exception $e) {
