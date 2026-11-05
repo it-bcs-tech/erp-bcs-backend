@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Hris\LoanController;
 use App\Http\Controllers\Api\V1\Hris\RecruitmentController;
 use App\Http\Controllers\Api\V1\Fms\DriverController;
 use App\Http\Controllers\Api\V1\Admin\AdminUserController;
+use App\Http\Controllers\Api\V1\Mail\MailController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -24,6 +25,7 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1/auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/mail/test', [MailController::class, 'testSend'])->middleware('throttle:10,1');
 });
 
 // Temporary Public Test Routes Removed
@@ -103,6 +105,9 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
 
     // ── FMS Module ──────────────────────────────────────
     Route::get('/fms/drivers', [DriverController::class, 'index']);
+
+    // ── Mail Service ────────────────────────────────────
+    Route::post('/mail/test', [MailController::class, 'testSend']);
 
     // ── Admin Module ────────────────────────────────────
     Route::prefix('admin')->middleware('role:superadmin|administrator')->group(function () {

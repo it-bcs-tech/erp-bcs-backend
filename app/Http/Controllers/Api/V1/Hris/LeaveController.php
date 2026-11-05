@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Api\V1\Hris;
 
 use App\Http\Controllers\Controller;
+use App\Mail\ApprovalNotificationMail;
+use App\Mail\ApprovalResultMail;
 use App\Models\LeaveRequest;
 use App\Traits\ApiResponseTrait;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 
 class LeaveController extends Controller
@@ -216,6 +220,28 @@ class LeaveController extends Controller
 
         $formattedId = 'LV-' . Carbon::parse($validated['start_date'])->format('Y') . '-' . str_pad($leave->id, 3, '0', STR_PAD_LEFT);
 
+        // Kirim Notifikasi Email Approval ke HRD / Atasan
+        try {
+            $approverEmail = config('mail.approver_email', env('HR_EMAIL', 'hrd@bcs-logistics.co.id'));
+            $applicantUser = auth('api')->user();
+            $frontendUrl = config('app.frontend_url', 'https://erp.bcslabs.tech');
+
+            Mail::to($approverEmail)->send(new ApprovalNotificationMail([
+                'approver_name'      => 'HRD & Operations Manager',
+                'document_number'    => $formattedId,
+                'document_type'      => 'Permohonan Cuti ' . ($validated['leave_type'] ?? 'Tahunan'),
+                'requester_name'     => $applicantUser ? $applicantUser->name : ('Karyawan ID #' . $validated['user_id']),
+                'requester_nik'      => $applicantUser ? ($applicantUser->nik ?? $validated['user_id']) : $validated['user_id'],
+                'department'         => 'PT Buana Centra Swakarsa',
+                'submission_date'    => now()->translatedFormat('d F Y'),
+                'amount_or_duration' => ($validated['duration_days'] ?? 1) . ' Hari Kerja (' . $validated['start_date'] . ' s/d ' . $validated['end_date'] . ')',
+                'notes'              => $validated['reason'],
+                'action_url'         => $frontendUrl . '/hris/leave',
+            ]));
+        } catch (\Throwable $e) {
+            Log::warning('Gagal mengirim email approval cuti: ' . $e->getMessage());
+        }
+
         return response()->json([
             'status'  => 'success',
             'message' => 'Pengajuan cuti berhasil dibuat dan menunggu persetujuan',
@@ -256,6 +282,30 @@ class LeaveController extends Controller
         $formattedId = is_numeric($id) 
             ? 'LV-' . Carbon::parse($leave->start_date ?? $leave->created_at)->format('Y') . '-' . str_pad($leave->id, 3, '0', STR_PAD_LEFT)
             : $id;
+
+        // Kirim Email Hasil Approval (Disetujui) ke Karyawan Pemohon
+        try {
+            $applicantUser = $leave->User;
+            $targetEmail = $applicantUser ? $applicantUser->email : null;
+            if ($targetEmail) {
+                $frontendUrl = config('app.frontend_url', 'https://erp.bcslabs.tech');
+                Mail::to($targetEmail)->send(new ApprovalResultMail([
+                    'document_number'   => $formattedId,
+                    'status_badge_text' => 'Disetujui',
+                    'requester_name'    => $applicantUser->name ?? 'Karyawan',
+                    'is_approved'       => true,
+                    'decision_title'    => 'Pengajuan Cuti Disetujui (Approved)',
+                    'decision_summary'  => "Permohonan cuti {$formattedId} Anda telah disetujui.",
+                    'document_type'     => 'Permohonan Cuti ' . ($leave->leave_type ?? $leave->type ?? 'Tahunan'),
+                    'reviewer_name'     => $user ? ($user->name ?? 'HRD Manager') : 'HRD Manager',
+                    'decision_date'     => now()->translatedFormat('d F Y H:i') . ' WIB',
+                    'reviewer_notes'    => $request->input('notes', 'Disetujui oleh atasan/manajemen.'),
+                    'action_url'        => $frontendUrl . '/hris/leave',
+                ]));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Gagal mengirim email approval result (approved): ' . $e->getMessage());
+        }
 
         return response()->json([
             'status'  => 'success',
@@ -300,6 +350,31 @@ class LeaveController extends Controller
         $formattedId = is_numeric($id) 
             ? 'LV-' . Carbon::parse($leave->start_date ?? $leave->created_at)->format('Y') . '-' . str_pad($leave->id, 3, '0', STR_PAD_LEFT)
             : $id;
+
+        // Kirim Email Hasil Approval (Ditolak) ke Karyawan Pemohon
+        try {
+            $applicantUser = $leave->User;
+            $targetEmail = $applicantUser ? $applicantUser->email : null;
+            if ($targetEmail) {
+                $frontendUrl = config('app.frontend_url', 'https://erp.bcslabs.tech');
+                $reviewerUser = auth('api')->user();
+                Mail::to($targetEmail)->send(new ApprovalResultMail([
+                    'document_number'   => $formattedId,
+                    'status_badge_text' => 'Ditolak',
+                    'requester_name'    => $applicantUser->name ?? 'Karyawan',
+                    'is_approved'       => false,
+                    'decision_title'    => 'Pengajuan Cuti Ditolak (Rejected)',
+                    'decision_summary'  => "Permohonan cuti {$formattedId} Anda telah ditolak oleh atasan/manajemen.",
+                    'document_type'     => 'Permohonan Cuti ' . ($leave->leave_type ?? $leave->type ?? 'Tahunan'),
+                    'reviewer_name'     => $reviewerUser ? ($reviewerUser->name ?? 'HRD Manager') : 'HRD Manager',
+                    'decision_date'     => now()->translatedFormat('d F Y H:i') . ' WIB',
+                    'reviewer_notes'    => $validated['rejection_reason'],
+                    'action_url'        => $frontendUrl . '/hris/leave',
+                ]));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Gagal mengirim email approval result (rejected): ' . $e->getMessage());
+        }
 
         return response()->json([
             'status'  => 'success',
