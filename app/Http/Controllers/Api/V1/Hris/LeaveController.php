@@ -166,7 +166,12 @@ class LeaveController extends Controller
      */
     public function updateStatus(Request $request, string $id)
     {
-        $leave = LeaveRequest::find($id);
+        $numericId = preg_replace('/[^0-9]/', '', $id);
+        $leave = LeaveRequest::find($numericId ?: $id);
+
+        if (!$leave) {
+            $leave = LeaveRequest::where('id', $id)->first();
+        }
 
         if (!$leave) {
             return $this->errorResponse('Leave request not found', 'ERR_NOT_FOUND', 404);
@@ -185,9 +190,42 @@ class LeaveController extends Controller
             );
         }
 
-        $leave->update([
-            'status'     => $request->status,
-        ]);
+        $user = auth('api')->user();
+        $isApproved = ($request->status === 'approved');
+
+        $leave->status = $request->status;
+        if ($isApproved) {
+            $leave->approved_by = $user ? $user->id : 1;
+        }
+        $leave->save();
+
+        $formattedId = 'LV-' . Carbon::parse($leave->start_date ?? $leave->created_at)->format('Y') . '-' . str_pad($leave->id, 3, '0', STR_PAD_LEFT);
+
+        // Kirim Email Hasil Approval ke Karyawan Pemohon
+        try {
+            $applicantUser = $leave->User;
+            $targetEmail = $applicantUser ? $applicantUser->email : null;
+            if ($targetEmail) {
+                $frontendUrl = config('app.frontend_url', 'https://erp.bcslabs.tech');
+                Mail::to($targetEmail)->send(new ApprovalResultMail([
+                    'document_number'   => $formattedId,
+                    'status_badge_text' => $isApproved ? 'Disetujui' : 'Ditolak',
+                    'requester_name'    => $applicantUser->name ?? 'Karyawan',
+                    'is_approved'       => $isApproved,
+                    'decision_title'    => $isApproved ? 'Pengajuan Cuti Disetujui (Approved)' : 'Pengajuan Cuti Ditolak (Rejected)',
+                    'decision_summary'  => $isApproved 
+                        ? "Permohonan cuti {$formattedId} Anda telah disetujui." 
+                        : "Permohonan cuti {$formattedId} Anda telah ditolak oleh atasan/manajemen.",
+                    'document_type'     => 'Permohonan Cuti ' . ($leave->leave_type ?? $leave->type ?? 'Tahunan'),
+                    'reviewer_name'     => $user ? ($user->name ?? 'HRD Manager') : 'HRD Manager',
+                    'decision_date'     => now()->translatedFormat('d F Y H:i') . ' WIB',
+                    'reviewer_notes'    => $request->input('notes', $isApproved ? 'Disetujui oleh atasan/manajemen.' : 'Pengajuan cuti ditolak.'),
+                    'action_url'        => $frontendUrl . '/hris/leave',
+                ]));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Gagal mengirim email approval result (updateStatus): ' . $e->getMessage());
+        }
 
         return $this->successResponse($leave, "Leave request {$request->status} successfully");
     }
@@ -274,9 +312,7 @@ class LeaveController extends Controller
 
         $user = auth('api')->user();
         $leave->status = 'approved';
-        if (isset($leave->approved_by)) {
-            $leave->approved_by = $user ? ($user->name ?? 'HRD Manager') : 'HRD Manager';
-        }
+        $leave->approved_by = $user ? ($user->id ?? 1) : 1;
         $leave->save();
 
         $formattedId = is_numeric($id) 
