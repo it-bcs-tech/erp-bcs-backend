@@ -93,6 +93,7 @@ class MailController extends Controller
                     'mailer'    => config('mail.default'),
                     'host'      => config('mail.mailers.smtp.host'),
                     'port'      => config('mail.mailers.smtp.port'),
+                    'username'  => config('mail.mailers.smtp.username'),
                 ],
             ], 200);
 
@@ -102,5 +103,36 @@ class MailController extends Controller
                 'message' => 'Gagal mengirim email: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * GET /api/v1/auth/mail/debug
+     * Diagnosa status konfigurasi email dan log mailer server Biznet
+     */
+    public function debugConfig(): JsonResponse
+    {
+        $logFile = storage_path('logs/laravel.log');
+        $recentLogs = [];
+        if (file_exists($logFile)) {
+            $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $recentLines = array_slice($lines, -50);
+            foreach ($recentLines as $line) {
+                if (stripos($line, 'mail') !== false || stripos($line, 'error') !== false || stripos($line, 'warning') !== false) {
+                    $recentLogs[] = $line;
+                }
+            }
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'config' => [
+                'default'   => config('mail.default'),
+                'host'      => config('mail.mailers.smtp.host'),
+                'port'      => config('mail.mailers.smtp.port'),
+                'username'  => config('mail.mailers.smtp.username'),
+                'from'      => config('mail.from'),
+            ],
+            'recent_mail_logs' => $recentLogs,
+        ]);
     }
 }

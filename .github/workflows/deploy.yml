@@ -52,9 +52,22 @@ jobs:
           script: |
             cd ~/erp-bcs/
 
+            # Pastikan konfigurasi Mailtrap di .env server tersinkronisasi ke kredensial aktif
+            grep -q "^MAIL_MAILER=" .env && sed -i 's/^MAIL_MAILER=.*/MAIL_MAILER=smtp/' .env || echo "MAIL_MAILER=smtp" >> .env
+            grep -q "^MAIL_HOST=" .env && sed -i 's/^MAIL_HOST=.*/MAIL_HOST=sandbox.smtp.mailtrap.io/' .env || echo "MAIL_HOST=sandbox.smtp.mailtrap.io" >> .env
+            grep -q "^MAIL_PORT=" .env && sed -i 's/^MAIL_PORT=.*/MAIL_PORT=2525/' .env || echo "MAIL_PORT=2525" >> .env
+            grep -q "^MAIL_USERNAME=" .env && sed -i 's/^MAIL_USERNAME=.*/MAIL_USERNAME=ee02fb372a38bd/' .env || echo "MAIL_USERNAME=ee02fb372a38bd" >> .env
+            grep -q "^MAIL_PASSWORD=" .env && sed -i 's/^MAIL_PASSWORD=.*/MAIL_PASSWORD=307b95ce990ec6/' .env || echo "MAIL_PASSWORD=307b95ce990ec6" >> .env
+            grep -q "^MAIL_ENCRYPTION=" .env && sed -i 's/^MAIL_ENCRYPTION=.*/MAIL_ENCRYPTION=tls/' .env || echo "MAIL_ENCRYPTION=tls" >> .env
+            grep -q "^MAIL_FROM_ADDRESS=" .env && sed -i 's/^MAIL_FROM_ADDRESS=.*/MAIL_FROM_ADDRESS="no-reply@bcs-logistics.co.id"/' .env || echo 'MAIL_FROM_ADDRESS="no-reply@bcs-logistics.co.id"' >> .env
+            grep -q "^MAIL_FROM_NAME=" .env && sed -i 's/^MAIL_FROM_NAME=.*/MAIL_FROM_NAME="PT Buana Centra Swakarsa"/' .env || echo 'MAIL_FROM_NAME="PT Buana Centra Swakarsa"' >> .env
+
             # Login ke GHCR
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             # Tarik image backend terbaru dan restart
             docker compose pull backend
             docker compose up -d
+
+            # Bersihkan cache config agar Laravel membaca .env terbaru
+            docker compose exec -T backend php artisan config:clear || true

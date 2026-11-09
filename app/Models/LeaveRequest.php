@@ -20,6 +20,7 @@ class LeaveRequest extends Model
         'reason',
         'status',       // Pending, Approved, Rejected
         'approved_by',
+        'rejection_reason',
         'notes',
     ];
 

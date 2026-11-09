@@ -26,6 +26,7 @@ Route::prefix('v1/auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/mail/test', [MailController::class, 'testSend'])->middleware('throttle:10,1');
+    Route::get('/mail/debug', [MailController::class, 'debugConfig']);
 });
 
 // Temporary Public Test Routes Removed

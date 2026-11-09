@@ -378,9 +378,7 @@ class LeaveController extends Controller
         }
 
         $leave->status = 'rejected';
-        if (isset($leave->rejection_reason)) {
-            $leave->rejection_reason = $validated['rejection_reason'];
-        }
+        $leave->rejection_reason = $validated['rejection_reason'];
         $leave->save();
 
         $formattedId = is_numeric($id) 
