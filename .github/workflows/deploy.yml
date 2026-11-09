@@ -61,6 +61,7 @@ jobs:
             grep -q "^MAIL_ENCRYPTION=" .env && sed -i 's/^MAIL_ENCRYPTION=.*/MAIL_ENCRYPTION=tls/' .env || echo "MAIL_ENCRYPTION=tls" >> .env
             grep -q "^MAIL_FROM_ADDRESS=" .env && sed -i 's/^MAIL_FROM_ADDRESS=.*/MAIL_FROM_ADDRESS="no-reply@bcs-logistics.co.id"/' .env || echo 'MAIL_FROM_ADDRESS="no-reply@bcs-logistics.co.id"' >> .env
             grep -q "^MAIL_FROM_NAME=" .env && sed -i 's/^MAIL_FROM_NAME=.*/MAIL_FROM_NAME="PT Buana Centra Swakarsa"/' .env || echo 'MAIL_FROM_NAME="PT Buana Centra Swakarsa"' >> .env
+            grep -q "^FRONTEND_URL=" .env && sed -i 's|^FRONTEND_URL=.*|FRONTEND_URL=https://erp.bcslabs.tech|' .env || echo "FRONTEND_URL=https://erp.bcslabs.tech" >> .env
 
             # Login ke GHCR
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin

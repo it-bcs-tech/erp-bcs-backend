@@ -47,7 +47,7 @@ class AnnouncementAccountMail extends Mailable
                 'announcement_body'  => $this->data['announcement_body'] ?? 'Berikut informasi terbaru dari manajemen.',
                 'info_box_title'     => $this->data['info_box_title'] ?? null,
                 'info_box_content'   => $this->data['info_box_content'] ?? null,
-                'action_url'         => $this->data['action_url'] ?? config('app.url', 'https://erp.bcslabs.tech'),
+                'action_url'         => $this->data['action_url'] ?? (config('app.frontend_url') ?: 'https://erp.bcslabs.tech'),
                 'button_text'        => $this->data['button_text'] ?? 'Buka Portal ERP BCS',
             ]
         );

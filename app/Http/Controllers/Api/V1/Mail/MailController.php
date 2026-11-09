@@ -88,12 +88,13 @@ class MailController extends Controller
                 'status'  => 'success',
                 'message' => "Email uji coba ({$type}) berhasil dikirim ke {$to}",
                 'data'    => [
-                    'recipient' => $to,
-                    'type'      => $type,
-                    'mailer'    => config('mail.default'),
-                    'host'      => config('mail.mailers.smtp.host'),
-                    'port'      => config('mail.mailers.smtp.port'),
-                    'username'  => config('mail.mailers.smtp.username'),
+                    'recipient'    => $to,
+                    'type'         => $type,
+                    'mailer'       => config('mail.default'),
+                    'host'         => config('mail.mailers.smtp.host'),
+                    'port'         => config('mail.mailers.smtp.port'),
+                    'username'     => config('mail.mailers.smtp.username'),
+                    'frontend_url' => $frontendUrl,
                 ],
             ], 200);
 
@@ -126,11 +127,12 @@ class MailController extends Controller
         return response()->json([
             'status' => 'success',
             'config' => [
-                'default'   => config('mail.default'),
-                'host'      => config('mail.mailers.smtp.host'),
-                'port'      => config('mail.mailers.smtp.port'),
-                'username'  => config('mail.mailers.smtp.username'),
-                'from'      => config('mail.from'),
+                'default'      => config('mail.default'),
+                'host'         => config('mail.mailers.smtp.host'),
+                'port'         => config('mail.mailers.smtp.port'),
+                'username'     => config('mail.mailers.smtp.username'),
+                'from'         => config('mail.from'),
+                'frontend_url' => config('app.frontend_url'),
             ],
             'recent_mail_logs' => $recentLogs,
         ]);

@@ -55,7 +55,7 @@ class ApprovalResultMail extends Mailable
                 'reviewer_name'      => $this->data['reviewer_name'] ?? 'Tim HR / Atasan',
                 'decision_date'      => $this->data['decision_date'] ?? date('d M Y H:i'),
                 'reviewer_notes'     => $this->data['reviewer_notes'] ?? '-',
-                'action_url'         => $this->data['action_url'] ?? config('app.url', 'https://erp.bcslabs.tech'),
+                'action_url'         => $this->data['action_url'] ?? (config('app.frontend_url') ?: 'https://erp.bcslabs.tech'),
             ]
         );
     }

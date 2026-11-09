@@ -51,7 +51,7 @@ class ApprovalNotificationMail extends Mailable
                 'submission_date'    => $this->data['submission_date'] ?? date('d M Y'),
                 'amount_or_duration' => $this->data['amount_or_duration'] ?? '-',
                 'notes'              => $this->data['notes'] ?? '-',
-                'action_url'         => $this->data['action_url'] ?? config('app.url', 'https://erp.bcslabs.tech'),
+                'action_url'         => $this->data['action_url'] ?? (config('app.frontend_url') ?: 'https://erp.bcslabs.tech'),
             ]
         );
     }
